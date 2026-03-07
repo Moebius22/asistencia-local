@@ -3,12 +3,14 @@ import pandas as pd
 from datetime import date
 
 # --- CONFIGURACIÓN DE LA APP ---
-st.set_page_config(page_title="Control de Asistencia", layout="wide")
-st.title("📋 Registro de Asistencia Local")
+st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- LISTA DE PERSONAS (Pegá tu lista acá) ---
+st.title("📋 Control de Asistencia")
+st.markdown("Toca el nombre de la persona para registrar su asistencia hoy.")
+
+# --- LISTA DE PERSONAS ---
 if 'lista_personas' not in st.session_state:
-    st.session_state.lista_personas = [
+    nombres = [
         "Ana Guaimas", "Ernesto Cervigno", "Rosana Cervigno", "Sandra Corbalan", 
         "Ana Laura Corbalan", "Clara Villar", "Lorenzo Galeano", "Jorge Corbalan", 
         "Carlos Corbalan", "Gladis Mendieta", "Jorge Rodriguez", "Ruth Corbalan", 
@@ -22,49 +24,56 @@ if 'lista_personas' not in st.session_state:
         "Santiago Villalba", "Mariano Corbalan", "Miriam Corbalan", "Jorgelina", 
         "Nicolas Peñaloza", "Dolores Pugnaloni", "Amalia Cervigno"
     ]
+    st.session_state.lista_personas = sorted(list(set(nombres))) # Ordenados y sin duplicados
 
 # --- BASE DE DATOS TEMPORAL ---
 if 'asistencias' not in st.session_state:
-    st.session_state.asistencias = pd.DataFrame(columns=["Nombre", "Fecha", "Hora"])
+    st.session_state.asistencias = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
-# --- LÓGICA DE REGISTRO ---
-col1, col2 = st.columns([2, 1])
+# --- INTERFAZ DE REGISTRO ---
+fecha_hoy = date.today().strftime("%d/%m/%Y")
 
-with col1:
-    st.subheader("Seleccioná los presentes de hoy")
-    fecha_hoy = date.today()
-    
-    # Grid de botones
-    for persona in st.session_state.lista_personas:
-        if st.button(f"✅ {persona}", key=persona, use_container_width=True):
-            nueva_asistencia = pd.DataFrame({
-                "Nombre": [persona],
-                "Fecha": [fecha_hoy.strftime("%d/%m/%Y")],
-                "Hora": [pd.Timestamp.now().strftime("%H:%M:%S")]
-            })
-            # Evitar duplicados el mismo día
-            if not ((st.session_state.asistencias['Nombre'] == persona) & 
-                    (st.session_state.asistencias['Fecha'] == fecha_hoy.strftime("%d/%m/%Y"))).any():
-                st.session_state.asistencias = pd.concat([st.session_state.asistencias, nueva_asistencia], ignore_index=True)
-                st.success(f"Registrado: {persona}")
-            else:
-                st.warning(f"{persona} ya está en la lista de hoy.")
+# Usamos columnas para que los botones no ocupen toda la pantalla hacia abajo
+cols = st.columns(2)
+for i, persona in enumerate(st.session_state.lista_personas):
+    col = cols[i % 2]
+    if col.button(persona, key=f"btn_{i}", use_container_width=True):
+        ya_esta = ((st.session_state.asistencias['Nombre y Apellido'] == persona) & 
+                   (st.session_state.asistencias['Fecha'] == fecha_hoy)).any()
+        
+        if not ya_esta:
+            nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
+            st.session_state.asistencias = pd.concat([st.session_state.asistencias, nueva_fila], ignore_index=True)
+            st.toast(f"✅ {persona} registrado")
+        else:
+            st.warning(f"{persona} ya fue registrado hoy.")
 
-with col2:
-    st.subheader("📊 Reportes")
-    fecha_busqueda = st.date_input("Elegí una fecha para el reporte", value=fecha_hoy)
-    fecha_str = fecha_busqueda.strftime("%d/%m/%Y")
+st.divider()
+
+# --- SECCIÓN DE REPORTES ---
+st.header("📊 Reporte de Asistencia")
+fecha_reporte = st.date_input("Seleccioná la fecha", value=date.today())
+fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
+
+# Filtrar datos
+reporte_dia = st.session_state.asistencias[st.session_state.asistencias['Fecha'] == fecha_rep_str]
+reporte_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
+
+if not reporte_final.empty:
+    # Mostrar tabla limpia
+    st.table(reporte_final)
     
-    filtro = st.session_state.asistencias[st.session_state.asistencias['Fecha'] == fecha_str]
-    
-    st.write(f"Asistentes el {fecha_str}: **{len(filtro)}**")
-    st.table(filtro[['Nombre', 'Hora']])
-    
-    if not filtro.empty:
-        csv = filtro.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Descargar Reporte (CSV)",
-            data=csv,
-            file_name=f"asistencia_{fecha_str}.csv",
-            mime="text/csv",
-        )
+    # Mostrar Total
+    total = len(reporte_final)
+    st.metric(label="Total de Asistentes", value=total)
+
+    # Botón para descargar Excel/CSV
+    csv = reporte_final.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label=f"📥 Descargar Lista del {fecha_rep_str}",
+        data=csv,
+        file_name=f"asistencia_{fecha_rep_str}.csv",
+        mime="text/csv",
+    )
+else:
+    st.info(f"No hay registros para el día {fecha_rep_str}")
