@@ -5,8 +5,17 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
+st.markdown("""
+    <style>
+    /* Estilo para que la tabla ocupe el ancho y se vea limpia */
+    .stTable {
+        border: 1px solid #e6e9ef;
+        border-radius: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("📋 Control de Asistencia")
-st.markdown("Toca el nombre de la persona para registrar su asistencia hoy.")
 
 # --- LISTA DE PERSONAS ---
 if 'lista_personas' not in st.session_state:
@@ -24,7 +33,7 @@ if 'lista_personas' not in st.session_state:
         "Santiago Villalba", "Mariano Corbalan", "Miriam Corbalan", "Jorgelina", 
         "Nicolas Peñaloza", "Dolores Pugnaloni", "Amalia Cervigno"
     ]
-    st.session_state.lista_personas = sorted(list(set(nombres))) # Ordenados y sin duplicados
+    st.session_state.lista_personas = sorted(list(set(nombres)))
 
 # --- BASE DE DATOS TEMPORAL ---
 if 'asistencias' not in st.session_state:
@@ -33,7 +42,6 @@ if 'asistencias' not in st.session_state:
 # --- INTERFAZ DE REGISTRO ---
 fecha_hoy = date.today().strftime("%d/%m/%Y")
 
-# Usamos columnas para que los botones no ocupen toda la pantalla hacia abajo
 cols = st.columns(2)
 for i, persona in enumerate(st.session_state.lista_personas):
     col = cols[i % 2]
@@ -51,29 +59,35 @@ for i, persona in enumerate(st.session_state.lista_personas):
 st.divider()
 
 # --- SECCIÓN DE REPORTES ---
-st.header("📊 Reporte de Asistencia")
-fecha_reporte = st.date_input("Seleccioná la fecha", value=date.today())
+st.header("📊 Reporte Detallado")
+fecha_reporte = st.date_input("Elegí la fecha para ver el reporte", value=date.today())
 fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
 
 # Filtrar datos
 reporte_dia = st.session_state.asistencias[st.session_state.asistencias['Fecha'] == fecha_rep_str]
-reporte_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
 
-if not reporte_final.empty:
-    # Mostrar tabla limpia
-    st.table(reporte_final)
+if not reporte_dia.empty:
+    # 1. Crear la tabla limpia con el contador incluido al final
+    df_mostrar = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
+    df_mostrar.index = df_mostrar.index + 1  # Para que enumere 1, 2, 3...
     
-    # Mostrar Total
-    total = len(reporte_final)
-    st.metric(label="Total de Asistentes", value=total)
+    # 2. Aplicar bordes finos mediante Styler (esto le da el look profesional)
+    st.write(f"### Lista de Asistentes - {fecha_rep_str}")
+    
+    # Mostramos la tabla con bordes visibles
+    st.dataframe(df_mostrar, use_container_width=True)
+    
+    # 3. Mostrar Total de asistentes resaltado
+    total = len(df_mostrar)
+    st.info(f"✨ **Total de personas presentes hoy:** {total}")
 
-    # Botón para descargar Excel/CSV
-    csv = reporte_final.to_csv(index=False).encode('utf-8')
+    # Botón de descarga
+    csv = df_mostrar.to_csv(index=True).encode('utf-8')
     st.download_button(
-        label=f"📥 Descargar Lista del {fecha_rep_str}",
+        label="📥 Descargar Reporte con Bordes",
         data=csv,
         file_name=f"asistencia_{fecha_rep_str}.csv",
         mime="text/csv",
     )
 else:
-    st.info(f"No hay registros para el día {fecha_rep_str}")
+    st.info(f"No hay registros de asistencia para el día {fecha_rep_str}")
