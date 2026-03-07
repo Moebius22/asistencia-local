@@ -5,21 +5,22 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# CSS para forzar bordes negros finos en la tabla
-st.markdown("""
+# Estilos CSS para la pantalla y el reporte
+estilos_tabla = """
     <style>
-    table {
+    .reporte-tabla {
         border-collapse: collapse;
         width: 100%;
-        border: 1px solid black;
+        border: 2px solid black;
+        font-family: Arial, sans-serif;
     }
-    th, td {
+    .reporte-tabla th, .reporte-tabla td {
         border: 1px solid black !important;
         padding: 8px;
         text-align: left;
         color: black;
     }
-    th {
+    .reporte-tabla th {
         background-color: #f2f2f2;
     }
     .total-box {
@@ -29,9 +30,11 @@ st.markdown("""
         font-weight: bold;
         font-size: 18px;
         text-align: center;
+        background-color: #eee;
     }
     </style>
-    """, unsafe_allow_html=True)
+"""
+st.markdown(estilos_tabla, unsafe_allow_html=True)
 
 st.title("📋 Control de Asistencia")
 
@@ -71,7 +74,7 @@ for i, persona in enumerate(st.session_state.lista_personas):
 
 st.divider()
 
-# --- REPORTE CON BORDES NEGROS ---
+# --- REPORTE ---
 st.header("📊 Reporte de Asistencia")
 fecha_reporte = st.date_input("Fecha del reporte", value=date.today())
 fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
@@ -79,22 +82,38 @@ fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
 reporte_dia = st.session_state.asistencias[st.session_state.asistencias['Fecha'] == fecha_rep_str]
 
 if not reporte_dia.empty:
-    # Creamos el DataFrame para mostrar con columnas separadas
     df_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
     df_final.index = df_final.index + 1
     df_final.index.name = "N°"
-    df_final = df_final.reset_index() # El índice pasa a ser una columna llamada "N°"
+    df_final = df_final.reset_index()
 
-    # Convertimos a HTML para forzar los bordes negros
-    st.write(f"### Lista del día {fecha_rep_str}")
-    st.write(df_final.to_html(index=False, escape=False), unsafe_allow_html=True)
-    
-    # Cuadro de total al final
+    # Generar el HTML de la tabla
+    tabla_html = df_final.to_html(index=False, classes='reporte-tabla', border=1)
     total = len(df_final)
-    st.markdown(f'<div class="total-box">TOTAL ASISTENTES: {total}</div>', unsafe_allow_html=True)
+    total_html = f'<div class="total-box">TOTAL ASISTENTES: {total}</div>'
+
+    # Mostrar en pantalla
+    st.write(f"### Lista del día {fecha_rep_str}")
+    st.write(estilos_tabla + tabla_html + total_html, unsafe_allow_html=True)
     
-    # Botón de descarga
-    csv = df_final.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Descargar CSV", data=csv, file_name=f"asistencia_{fecha_rep_str}.csv")
+    # PREPARAR ARCHIVO PARA DESCARGA (HTML Imprimible)
+    reporte_completo_html = f"""
+    <html>
+    <head>{estilos_tabla}</head>
+    <body>
+        <h2>Reporte de Asistencia - Pehuajó</h2>
+        <p>Fecha: {fecha_rep_str}</p>
+        {tabla_html}
+        {total_html}
+    </body>
+    </html>
+    """
+    
+    st.download_button(
+        label="📥 Descargar Reporte con Bordes (HTML)",
+        data=reporte_completo_html,
+        file_name=f"asistencia_{fecha_rep_str}.html",
+        mime="text/html"
+    )
 else:
     st.info("No hay registros para esta fecha.")
