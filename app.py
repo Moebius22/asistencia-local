@@ -9,7 +9,18 @@ st.title("📋 Registro de Asistencia Local")
 # --- LISTA DE PERSONAS (Pegá tu lista acá) ---
 if 'lista_personas' not in st.session_state:
     st.session_state.lista_personas = [
-        "Ana Guaimas", "Ernesto Cervigno", "Rosana Cervigno", "Sandra Corbalan", "Ana Laura Corbalan", "Clara Villar", "Lorenzo Galeano", "Jorge Corbalan", "Carlos Corbalan", "Gladis Mendieta", "Jorge Rodriguez", "Ruth Corbalan", "Martin Rodriguez", "Franco Rodriguez", "Natalia Cornero", "Nestor Sangregorio", "Barbara Rodriguez", "Regina Sangregorio", "Bautista Sangregorio", "Simon Sangregorio", Victor Enrique Gazotti", "Norma Galvan", "Thiago Gazotti", "Hugo Gazotti", "Magali Gazotti", "Luciana Gazotti", "Paulina", "Pablo", "Francisco Guzzo", "Carla Tobio", "Luca Guzzo", "Sara Guzzo", "Antonia Guzzo", "Gladis Mendieta", "Patricia Manton", "Andrea Corbalan", "Adela Atun", "Rocio Cervigno", "Roma Corbalan", "Soledad Griego", "Agustin Galiani", "Dario Villalba", "Jose Maria", "Tomas Villalba", "Santiago Villalba", "Mariano Corbalan", "Miriam Corbalan", "Jorgelina", "Nicolas Peñaloza", "Dolores Pugnaloni", "Amalia Cervigno"
+        "Ana Guaimas", "Ernesto Cervigno", "Rosana Cervigno", "Sandra Corbalan", 
+        "Ana Laura Corbalan", "Clara Villar", "Lorenzo Galeano", "Jorge Corbalan", 
+        "Carlos Corbalan", "Gladis Mendieta", "Jorge Rodriguez", "Ruth Corbalan", 
+        "Martin Rodriguez", "Franco Rodriguez", "Natalia Cornero", "Nestor Sangregorio", 
+        "Barbara Rodriguez", "Regina Sangregorio", "Bautista Sangregorio", "Simon Sangregorio", 
+        "Victor Enrique Gazotti", "Norma Galvan", "Thiago Gazotti", "Hugo Gazotti", 
+        "Magali Gazotti", "Luciana Gazotti", "Paulina", "Pablo", "Francisco Guzzo", 
+        "Carla Tobio", "Luca Guzzo", "Sara Guzzo", "Antonia Guzzo", "Patricia Manton", 
+        "Andrea Corbalan", "Adela Atun", "Rocio Cervigno", "Roma Corbalan", "Soledad Griego", 
+        "Agustin Galiani", "Dario Villalba", "Jose Maria", "Tomas Villalba", 
+        "Santiago Villalba", "Mariano Corbalan", "Miriam Corbalan", "Jorgelina", 
+        "Nicolas Peñaloza", "Dolores Pugnaloni", "Amalia Cervigno"
     ]
 
 # --- BASE DE DATOS TEMPORAL ---
