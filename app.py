@@ -5,34 +5,16 @@ from datetime import date
 
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
 
-# --- FORZAR CUENTA DE SERVICIO ---
+# --- CONEXIÓN AUTOMÁTICA ---
 try:
-    # 1. Traemos los datos de los secrets
-    conf = st.secrets["connections"]["gsheets"]
-    
-    # 2. Construimos el diccionario que la librería exige para habilitar CRUD
-    # Es VITAL que los nombres de las llaves sean estos exactamente
-    creds = {
-        "project_id": conf["project_id"],
-        "client_email": conf["client_email"],
-        "private_key": conf["private_key"].replace("\\n", "\n"),
-        "type": "service_account",
-    }
-    
-    # 3. Creamos la conexión pasando las credenciales explícitamente
-    conn = st.connection(
-        "gsheets", 
-        type=GSheetsConnection, 
-        service_account_info=creds # Esto le dice: "No soy público, soy una cuenta de servicio"
-    )
-    url_hoja = conf["spreadsheet"]
-
+    # No pasar parámetros aquí. La librería lee st.secrets["connections"]["gsheets"]
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
 except Exception as e:
-    st.error(f"Error de autenticación: {e}")
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
-st.title("Control de Asistencia Comunidad Pehuajó")
-
+st.title("Asistencia Comunidad Pehuajó")
 # --- LISTA DE NOMBRES ---
 nombres = sorted(["Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", "Corbalan, Jorge", "Corbalan, Mariano", "Corbalan, Miriam", "Corbalan, Roma", "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", "Galiani, Agustin", "Galvan, Norma", "Gazotti, Hugo", "Gazotti, Luciana", "Gazotti, Magali", "Gazotti, Thiago", "Gazotti, Victor Enrique", "Griego, Soledad", "Guaimas, Ana", "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", "Jorgelina", "Manton, Patricia", "Maria, Jose", "Mendieta, Gladis", "Pablo", "Paulina", "Peralta, Marta", "Peñaloza, Nicolas", "Pugnaloni, Dolores", "Rodriguez, Barbara", "Rodriguez, Franco", "Rodriguez, Jorge", "Rodriguez, Martin", "Sangregorio, Bautista", "Sangregorio, Nestor", "Sangregorio, Regina", "Sangregorio, Simon", "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"])
 
@@ -64,11 +46,12 @@ for i, nombre in enumerate(nombres):
         col.button(f"✔️ {nombre}", key=f"b_{i}", disabled=True, use_container_width=True)
     else:
         # Todo lo que sigue abajo tiene que estar corrido a la derecha
-        if col.button(nombre, key=f"b_{i}", use_container_width=True):
+      if col.button(nombre, key=f"b_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df, nueva_fila], ignore_index=True)
             
             try:
+                # Al no pasarle service_account_info manualmente, ya no da el error
                 conn.update(spreadsheet=url_hoja, data=updated_df)
                 st.success(f"Registrado: {nombre}")
                 st.rerun()
