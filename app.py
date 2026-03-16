@@ -6,19 +6,21 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN A GOOGLE SHEETS CON CURACIÓN DE LLAVE ---
+# --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
 try:
-    # Obtenemos los secretos del bloque gsheets
+    # 1. Cargamos los secretos
     creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # "CURAMOS" la llave: Reemplazamos los \n de texto por saltos reales
+    # 2. Curamos la llave (por si acaso)
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # Conectamos pasando los secretos ya limpios
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+    # 3. CONEXIÓN SIN 'type': Streamlit usará el 'type' que está en tus Secrets
+    # Pasamos los creds directamente
+    conn = st.connection("gsheets", **creds)
+    
 except Exception as e:
-    st.error(f"Error crítico de configuración: {e}")
+    st.error(f"Error de configuración: {e}")
     st.stop()
 
 # Estilos CSS
@@ -52,7 +54,9 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    df_asistencia = conn.read(ttl=0)
+    # Usamos la URL que está en los secretos (spreadsheet)
+    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 except Exception:
@@ -76,8 +80,8 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(data=updated_df)
-            st.toast(f"✅ Registro exitoso: {persona}")
+            conn.update(spreadsheet=url_hoja, data=updated_df)
+            st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
 # --- REPORTE ---
