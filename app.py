@@ -6,13 +6,14 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
-try:
-    # Usamos la conexión estándar, Streamlit buscará automáticamente en Secrets
-    conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
-    st.error(f"Error de configuración en Secrets: {e}")
-    st.stop()
+# --- CONEXIÓN A GOOGLE SHEETS ---
+# Extraemos los secretos y limpiamos la llave privada para evitar el ValueError
+secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
+if "private_key" in secrets_dict:
+    secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
+
+# Creamos la conexión pasando los secretos directamente
+conn = st.connection("gsheets", type=GSheetsConnection, **secrets_dict)
 
 # Estilos CSS
 st.markdown("""
@@ -45,7 +46,6 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # Leemos la planilla. ttl=0 para que no guarde memoria vieja.
     df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -58,7 +58,6 @@ st.write(f"📅 **Hoy es:** {fecha_hoy}")
 # Identificar presentes hoy
 presentes_hoy = []
 if not df_asistencia.empty:
-    # Convertimos la columna Fecha a texto para comparar fácil
     df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
     presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
 
