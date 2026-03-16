@@ -8,18 +8,13 @@ st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_ico
 
 # --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
 try:
-    # Este bloque limpia la llave privada por si hay errores de formato
-    if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-        secrets_dict = dict(st.secrets["connections"]["gsheets"])
-        secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
-        conn = st.connection("gsheets", type=GSheetsConnection, **secrets_dict)
-    else:
-        conn = st.connection("gsheets", type=GSheetsConnection)
+    # Usamos la conexión estándar, Streamlit buscará automáticamente en Secrets
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error de configuración en Secrets: {e}")
     st.stop()
 
-# Estilos CSS para que se vea profesional
+# Estilos CSS
 st.markdown("""
     <style>
     .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
@@ -50,6 +45,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
+    # Leemos la planilla. ttl=0 para que no guarde memoria vieja.
     df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -62,6 +58,8 @@ st.write(f"📅 **Hoy es:** {fecha_hoy}")
 # Identificar presentes hoy
 presentes_hoy = []
 if not df_asistencia.empty:
+    # Convertimos la columna Fecha a texto para comparar fácil
+    df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
     presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
 
 # --- GRILLA DE BOTONES ---
@@ -75,7 +73,7 @@ for i, persona in enumerate(nombres):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
             conn.update(data=updated_df)
-            st.toast(f"✅ Guardado: {persona}")
+            st.toast(f"✅ Guardado en Google Sheets: {persona}")
             st.rerun()
 
 # --- REPORTE ---
