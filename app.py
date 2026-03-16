@@ -6,23 +6,27 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN QUIRÚRGICA ---
+# --- CONEXIÓN CON FILTRADO ESTRICTO ---
 try:
-    # 1. Cargamos los secretos a un diccionario
-    creds = st.secrets["connections"]["gsheets"].to_dict()
+    # 1. Cargamos todos los secretos
+    raw_creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. SEPARACIÓN DE DATOS: Sacamos lo que NO es para autenticar
-    # Quitamos 'type' para que no choque con la función
-    creds.pop("type", None)
-    # Quitamos 'spreadsheet' y lo guardamos en una variable aparte
-    url_hoja = creds.pop("spreadsheet", None) 
+    # 2. Guardamos la URL de la hoja (la usaremos luego, no en la conexión)
+    url_hoja = raw_creds.get("spreadsheet")
     
-    # 3. Curamos la llave privada (arreglando los saltos de línea)
-    if "private_key" in creds:
-        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
-    
-    # 4. CONEXIÓN: Ahora 'creds' solo tiene los campos de la cuenta de servicio
-    conn = st.connection("gsheets_final", type=GSheetsConnection, **creds)
+    # 3. CREAMOS EL FILTRO (Lista Blanca)
+    # Solo pasamos estos campos que son el "corazón" de la cuenta de servicio
+    auth_creds = {}
+    # Intentaremos con los campos de identidad mínimos
+    for campo in ["client_email", "private_key", "token_uri"]:
+        if campo in raw_creds:
+            valor = raw_creds[campo]
+            if campo == "private_key":
+                valor = valor.replace("\\n", "\n")
+            auth_creds[campo] = valor
+
+    # 4. CONEXIÓN: Solo le enviamos el diccionario filtrado
+    conn = st.connection("gsheets_final_v2", type=GSheetsConnection, **auth_creds)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -31,9 +35,9 @@ except Exception as e:
 # --- ESTILOS CSS ---
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
+    .titulo-principal { text-align: center; color: #1E3A8A; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
-    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; text-align: left; color: black; }
+    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
     .total-box { border: 2px solid black; padding: 10px; margin-top: 10px; font-weight: bold; font-size: 18px; text-align: center; background-color: #f0f0f0; color: black; }
     </style>
@@ -59,7 +63,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # Usamos la URL que guardamos antes
+    # Le pasamos la URL explícitamente aquí
     df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -84,9 +88,9 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            # También pasamos la URL aquí
+            # Pasamos la URL también aquí
             conn.update(spreadsheet=url_hoja, data=updated_df)
-            st.toast(f"✅ Registro exitoso: {persona}")
+            st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
 # --- REPORTE ---
