@@ -6,12 +6,19 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN ESTÁNDAR ---
+# --- CONEXIÓN A GOOGLE SHEETS CON CURACIÓN DE LLAVE ---
 try:
-    # Dejamos que Streamlit busque solo en [connections.gsheets]
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # Obtenemos los secretos del bloque gsheets
+    creds = st.secrets["connections"]["gsheets"].to_dict()
+    
+    # "CURAMOS" la llave: Reemplazamos los \n de texto por saltos reales
+    if "private_key" in creds:
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    
+    # Conectamos pasando los secretos ya limpios
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error crítico de configuración: {e}")
     st.stop()
 
 # Estilos CSS
@@ -70,7 +77,7 @@ for i, persona in enumerate(nombres):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
             conn.update(data=updated_df)
-            st.toast(f"✅ Guardado: {persona}")
+            st.toast(f"✅ Registro exitoso: {persona}")
             st.rerun()
 
 # --- REPORTE ---
