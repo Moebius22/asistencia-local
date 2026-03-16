@@ -1,8 +1,3 @@
-¡Por supuesto! Como tu Product Lead, me aseguro de que la lista esté siempre actualizada antes de pasar a producción. Ya incluí a Guaimas, Ana y a Peralta, Marta en el código, y de paso verifiqué que el orden alfabético por apellido se mantenga perfecto.
-
-Aquí tenés el código final "a prueba de errores" para conectar con Google Sheets:
-
-Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
