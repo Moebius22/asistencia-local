@@ -11,16 +11,17 @@ try:
     # 1. Obtenemos el diccionario de secretos
     creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. Sacamos la URL para que no moleste en la autenticación
+    # 2. ELIMINAMOS EL CONFLICTO: Sacamos 'type' y 'spreadsheet' del diccionario
+    # Esto evita el error de "multiple values for keyword argument 'type'"
+    creds.pop("type", None) 
     url_hoja = creds.pop("spreadsheet", None)
     
-    # 3. Limpiamos la llave privada (quitamos errores de formato)
+    # 3. Limpiamos la llave privada
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # 4. CONEXIÓN DIRECTA: 
-    # Usamos 'gsheets' como nombre, pero le pasamos la clase y los creds por separado
-    conn = st.connection("gsheets_conn", type=GSheetsConnection, **creds)
+    # 4. CONEXIÓN: Ahora sí, un solo 'type' definido explícitamente
+    conn = st.connection("gsheets_final", type=GSheetsConnection, **creds)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -57,6 +58,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
+    # Usamos la URL que extrajimos de los secretos
     df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -81,6 +83,7 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
+            # Actualizamos la planilla usando la URL
             conn.update(spreadsheet=url_hoja, data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
@@ -100,3 +103,5 @@ if not df_asistencia.empty:
         df_final = df_final.reset_index()
         tabla_html = df_final.to_html(index=False, classes='reporte-tabla', border=1)
         st.write(f"{tabla_html}<div class='total-box'>TOTAL ASISTENTES: {len(df_final)}</div>", unsafe_allow_html=True)
+    else:
+        st.info("No hay registros para esta fecha.")
