@@ -1,3 +1,8 @@
+¡Por supuesto! Como tu Product Lead, me aseguro de que la lista esté siempre actualizada antes de pasar a producción. Ya incluí a Guaimas, Ana y a Peralta, Marta en el código, y de paso verifiqué que el orden alfabético por apellido se mantenga perfecto.
+
+Aquí tenés el código final "a prueba de errores" para conectar con Google Sheets:
+
+Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -22,33 +27,41 @@ st.markdown("""
 
 st.markdown("<h1 class='titulo-principal'>Control de Asistencia Comunidad Pehuajó</h1>", unsafe_allow_html=True)
 
-# --- LISTA DE PERSONAS ---
+# --- LISTA DE PERSONAS ACTUALIZADA ---
 nombres = sorted([
     "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
     "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", 
     "Corbalan, Jorge", "Corbalan, Mariano", "Corbalan, Miriam", "Corbalan, Roma", 
-    "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", "Guaimas, Ana", "Peralta, Marta",  
+    "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", 
     "Galiani, Agustin", "Galvan, Norma", "Gazotti, Hugo", "Gazotti, Luciana", 
     "Gazotti, Magali", "Gazotti, Thiago", "Gazotti, Victor Enrique", "Griego, Soledad", 
-    "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", 
+    "Guaimas, Ana", "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", 
     "Jorgelina", "Manton, Patricia", "Maria, Jose", "Mendieta, Gladis", 
-    "Pablo", "Paulina", "Peñaloza, Nicolas", "Pugnaloni, Dolores", 
+    "Pablo", "Paulina", "Peralta, Marta", "Peñaloza, Nicolas", "Pugnaloni, Dolores", 
     "Rodriguez, Barbara", "Rodriguez, Franco", "Rodriguez, Jorge", "Rodriguez, Martin", 
     "Sangregorio, Bautista", "Sangregorio, Nestor", "Sangregorio, Regina", "Sangregorio, Simon", 
     "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"
 ])
 
-# --- CARGAR DATOS EXISTENTES DESDE GOOGLE SHEETS ---
+# --- CARGAR DATOS CON SEGURIDAD ---
 try:
-    df_asistencia = conn.read(ttl=0) # ttl=0 para que siempre traiga lo último
-except:
+    # Leemos la planilla. ttl=0 para datos frescos.
+    df_asistencia = conn.read(ttl=0)
+    
+    # Verificación de columnas para evitar el KeyError
+    if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
+        df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
+except Exception:
     df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
 st.write(f"📅 **Hoy es:** {fecha_hoy}")
 
 # Identificar presentes hoy
-presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
+if not df_asistencia.empty and 'Nombre y Apellido' in df_asistencia.columns:
+    presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
+else:
+    presentes_hoy = []
 
 # --- GRILLA DE BOTONES ---
 cols = st.columns(3)
@@ -62,7 +75,7 @@ for i, persona in enumerate(nombres):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
             conn.update(data=updated_df)
-            st.toast(f"✅ Guardado en la nube: {persona}")
+            st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
 # --- REPORTE ---
@@ -71,7 +84,10 @@ st.header("📊 Reporte en Tiempo Real")
 fecha_reporte = st.date_input("Consultar fecha:", value=date.today())
 fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
 
-reporte_dia = df_asistencia[df_asistencia['Fecha'] == fecha_rep_str]
+if not df_asistencia.empty and 'Fecha' in df_asistencia.columns:
+    reporte_dia = df_asistencia[df_asistencia['Fecha'] == fecha_rep_str]
+else:
+    reporte_dia = pd.DataFrame()
 
 if not reporte_dia.empty:
     df_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
