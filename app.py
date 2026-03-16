@@ -1,11 +1,3 @@
-¡Mil disculpas! Ese error sucede porque los secretos de Streamlit (st.secrets) son de solo lectura por seguridad; no permiten que modifiquemos la llave con .replace() directamente sobre el objeto original.
-
-Para solucionarlo, simplemente vamos a copiar los datos a un diccionario nuevo (una "copia de trabajo") que sí nos deje hacer cambios.
-
-🛠️ Código definitivo para app.py
-Copiá y reemplazá todo el contenido de tu archivo. Este código ya evita el problema de "solo lectura":
-
-Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -14,20 +6,19 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN QUIRÚRGICA (SOLUCIÓN AL ERROR DE ASIGNACIÓN) ---
+# --- CONEXIÓN ---
 try:
-    # 1. Extraemos la URL (está fuera del bloque service_account_info)
+    # 1. Extraemos la URL
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     
-    # 2. CREAMOS UNA COPIA del diccionario de info (para que sea editable)
-    # Esto evita el error "Secrets does not support item assignment"
+    # 2. Copiamos la info a un diccionario común para poder editarlo
     info = dict(st.secrets["connections"]["gsheets"]["service_account_info"])
     
-    # 3. Ahora sí, reparamos la llave en nuestra copia
+    # 3. Reparamos la llave privada
     if "private_key" in info:
         info["private_key"] = info["private_key"].replace("\\n", "\n")
     
-    # 4. Conectamos usando nuestra copia editada
+    # 4. Conectamos
     conn = st.connection("gsheets", type=GSheetsConnection, service_account_info=info)
     
 except Exception as e:
@@ -60,7 +51,7 @@ nombres = sorted([
     "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"
 ])
 
-# --- LECTURA DE DATOS ---
+# --- LÓGICA DE DATOS ---
 try:
     df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty:
