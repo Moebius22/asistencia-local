@@ -8,27 +8,28 @@ st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_ico
 
 # --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
 try:
-    # 1. Obtenemos los secretos como un diccionario
+    # 1. Cargamos los secretos
     conf_dict = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. SEPARACIÓN CRÍTICA: Sacamos los datos que NO van en la conexión inicial
-    # Guardamos la URL de la planilla en una variable aparte
-    spreadsheet_url = conf_dict.pop("spreadsheet", None)
+    # 2. Guardamos la URL y el email (los necesitaremos luego)
+    spreadsheet_url = conf_dict.get("spreadsheet")
     
-    # Sacamos otros campos que suelen dar el error "unexpected keyword argument"
-    # pero que Google ya reconoce dentro de las llaves
-    conf_dict.pop("project_id", None)
-    conf_dict.pop("universe_domain", None)
+    # 3. LIMPIEZA TOTAL: Borramos todo lo que hace fallar a GSheetsConnection
+    # Solo dejamos lo mínimo indispensable para autenticar
+    for key in ["spreadsheet", "project_id", "private_key_id", "client_id", 
+                "auth_uri", "token_uri", "auth_provider_x509_cert_url", 
+                "client_x509_cert_url", "universe_domain"]:
+        conf_dict.pop(key, None)
     
-    # 3. Limpiamos la llave privada
+    # 4. Arreglamos la llave privada
     if "private_key" in conf_dict:
         conf_dict["private_key"] = conf_dict["private_key"].replace("\\n", "\n")
     
-    # 4. CONEXIÓN: Solo con los datos de autenticación limpios
+    # 5. Conexión manual con el diccionario "ultra-limpio"
     conn = st.connection("gsheets", type=GSheetsConnection, **conf_dict)
     
 except Exception as e:
-    st.error(f"Hubo un problema con la configuración: {e}")
+    st.error(f"Error de configuración: {e}")
     st.stop()
 
 # Estilos CSS
@@ -62,7 +63,6 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # Usamos la URL que separamos antes
     df_asistencia = conn.read(spreadsheet=spreadsheet_url, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -72,7 +72,6 @@ except Exception:
 fecha_hoy = date.today().strftime("%d/%m/%Y")
 st.write(f"📅 **Hoy es:** {fecha_hoy}")
 
-# Identificar presentes hoy
 presentes_hoy = []
 if not df_asistencia.empty:
     df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
@@ -88,7 +87,6 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            # Pasamos la URL explícitamente al actualizar
             conn.update(spreadsheet=spreadsheet_url, data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
@@ -108,7 +106,3 @@ if not df_asistencia.empty:
         df_final = df_final.reset_index()
         tabla_html = df_final.to_html(index=False, classes='reporte-tabla', border=1)
         st.write(f"{tabla_html}<div class='total-box'>TOTAL ASISTENTES: {len(df_final)}</div>", unsafe_allow_html=True)
-    else:
-        st.info("No hay registros para esta fecha.")
-else:
-    st.info("La planilla está lista para recibir el primer registro.")
