@@ -11,14 +11,16 @@ try:
     # 1. Cargamos los secretos
     creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. LIMPIEZA TOTAL: Borramos 'type' del diccionario para que no choque
+    # 2. LIMPIEZA ABSOLUTA: Sacamos 'type' y 'spreadsheet' del dict de conexión
+    # 'spreadsheet' lo guardamos en una variable para usarlo después
     creds.pop("type", None)
+    url_hoja = creds.pop("spreadsheet", None) 
     
     # 3. Curamos la llave privada
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # 4. CONEXIÓN
+    # 4. CONEXIÓN: Sin 'type' ni 'spreadsheet' dentro del dict **creds
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -55,7 +57,8 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    df_asistencia = conn.read(ttl=0)
+    # IMPORTANTE: Le pasamos la URL explícitamente aquí
+    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 except Exception:
@@ -73,14 +76,14 @@ if not df_asistencia.empty:
 cols = st.columns(3)
 for i, persona in enumerate(nombres):
     col = cols[i % 3]
-    # CORRECCIÓN DE SINTAXIS AQUÍ:
     if persona in presentes_hoy:
         col.button(f"✔️ {persona}", key=f"btn_{i}", disabled=True, use_container_width=True)
     else:
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(data=updated_df)
+            # Pasamos la URL también en el update
+            conn.update(spreadsheet=url_hoja, data=updated_df)
             st.toast(f"✅ Registro exitoso: {persona}")
             st.rerun()
 
