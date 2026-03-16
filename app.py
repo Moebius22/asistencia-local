@@ -1,52 +1,92 @@
+¡Mil disculpas! Ese error sucede porque los secretos de Streamlit (st.secrets) son de solo lectura por seguridad; no permiten que modifiquemos la llave con .replace() directamente sobre el objeto original.
+
+Para solucionarlo, simplemente vamos a copiar los datos a un diccionario nuevo (una "copia de trabajo") que sí nos deje hacer cambios.
+
+🛠️ Código definitivo para app.py
+Copiá y reemplazá todo el contenido de tu archivo. Este código ya evita el problema de "solo lectura":
+
+Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
 
-st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
+# --- CONFIGURACIÓN DE LA APP ---
+st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN DEFINITIVA ---
+# --- CONEXIÓN QUIRÚRGICA (SOLUCIÓN AL ERROR DE ASIGNACIÓN) ---
 try:
-    # 1. Obtener la info del diccionario service_account_info de los secretos
-    info = st.secrets["connections"]["gsheets"]["service_account_info"]
+    # 1. Extraemos la URL (está fuera del bloque service_account_info)
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     
-    # 2. Reparar la llave privada (esto es lo que causaba el error de formato)
-    info["private_key"] = info["private_key"].replace("\\n", "\n")
+    # 2. CREAMOS UNA COPIA del diccionario de info (para que sea editable)
+    # Esto evita el error "Secrets does not support item assignment"
+    info = dict(st.secrets["connections"]["gsheets"]["service_account_info"])
     
-    # 3. Conectar pasando el diccionario LIMPIO
+    # 3. Ahora sí, reparamos la llave en nuestra copia
+    if "private_key" in info:
+        info["private_key"] = info["private_key"].replace("\\n", "\n")
+    
+    # 4. Conectamos usando nuestra copia editada
     conn = st.connection("gsheets", type=GSheetsConnection, service_account_info=info)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
     st.stop()
 
-# --- LÓGICA DE LA APP ---
-st.title("Control de Asistencia")
+# --- ESTILOS ---
+st.markdown("""
+    <style>
+    .titulo-principal { text-align: center; color: #1E3A8A; font-family: sans-serif; }
+    .stButton>button { border-radius: 5px; height: 3em; }
+    </style>
+    """, unsafe_allow_html=True)
 
-nombres = sorted(["Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", "Corbalan, Jorge", "Corbalan, Mariano", "Corbalan, Miriam", "Corbalan, Roma", "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", "Galiani, Agustin", "Galvan, Norma", "Gazotti, Hugo", "Gazotti, Luciana", "Gazotti, Magali", "Gazotti, Thiago", "Gazotti, Victor Enrique", "Griego, Soledad", "Guaimas, Ana", "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", "Jorgelina", "Manton, Patricia", "Maria, Jose", "Mendieta, Gladis", "Pablo", "Paulina", "Peralta, Marta", "Peñaloza, Nicolas", "Pugnaloni, Dolores", "Rodriguez, Barbara", "Rodriguez, Franco", "Rodriguez, Jorge", "Rodriguez, Martin", "Sangregorio, Bautista", "Sangregorio, Nestor", "Sangregorio, Regina", "Sangregorio, Simon", "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"])
+st.markdown("<h1 class='titulo-principal'>Control de Asistencia Comunidad Pehuajó</h1>", unsafe_allow_html=True)
 
+# --- LISTA DE PERSONAS ---
+nombres = sorted([
+    "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
+    "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", 
+    "Corbalan, Jorge", "Corbalan, Mariano", "Corbalan, Miriam", "Corbalan, Roma", 
+    "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", 
+    "Galiani, Agustin", "Galvan, Norma", "Gazotti, Hugo", "Gazotti, Luciana", 
+    "Gazotti, Magali", "Gazotti, Thiago", "Gazotti, Victor Enrique", "Griego, Soledad", 
+    "Guaimas, Ana", "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", 
+    "Jorgelina", "Manton, Patricia", "Maria, Jose", "Mendieta, Gladis", 
+    "Pablo", "Paulina", "Peralta, Marta", "Peñaloza, Nicolas", "Pugnaloni, Dolores", 
+    "Rodriguez, Barbara", "Rodriguez, Franco", "Rodriguez, Jorge", "Rodriguez, Martin", 
+    "Sangregorio, Bautista", "Sangregorio, Nestor", "Sangregorio, Regina", "Sangregorio, Simon", 
+    "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"
+])
+
+# --- LECTURA DE DATOS ---
 try:
-    df = conn.read(spreadsheet=url_hoja, ttl=0)
-except:
-    df = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
+    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
+    if df_asistencia is None or df_asistencia.empty:
+        df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
+except Exception:
+    df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
-st.write(f"📅 Fecha: {fecha_hoy}")
+st.write(f"📅 **Hoy es:** {fecha_hoy}")
 
-# Filtro de presentes hoy
-presentes = []
-if not df.empty:
-    presentes = df[df['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
+# Filtro de presentes
+presentes_hoy = []
+if not df_asistencia.empty:
+    df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
+    presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
 
+# --- GRILLA DE BOTONES ---
 cols = st.columns(3)
 for i, persona in enumerate(nombres):
     col = cols[i % 3]
-    if persona in presentes:
-        col.button(f"✔️ {persona}", key=f"p_{i}", disabled=True, use_container_width=True)
+    if persona in presentes_hoy:
+        col.button(f"✔️ {persona}", key=f"btn_{i}", disabled=True, use_container_width=True)
     else:
-        if col.button(persona, key=f"b_{i}", use_container_width=True):
+        if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
-            updated_df = pd.concat([df, nueva_fila], ignore_index=True)
+            updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
             conn.update(spreadsheet=url_hoja, data=updated_df)
+            st.toast(f"✅ Guardado: {persona}")
             st.rerun()
