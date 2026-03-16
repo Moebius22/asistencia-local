@@ -3,17 +3,24 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
 
+# --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# Conectamos recuperando la llave y forzando el reemplazo de \n
+# --- CONEXIÓN QUIRÚRGICA ---
 try:
+    # 1. Cargamos los secretos
     creds = st.secrets["connections"]["gsheets"].to_dict()
+    
+    # 2. LIMPIEZA TOTAL: Guardamos la URL y la borramos del diccionario de conexión
+    # También borramos 'type' para que no duplique argumentos
+    url_hoja = creds.pop("spreadsheet", None)
+    creds.pop("type", None)
+    
+    # 3. Curamos la llave privada
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # IMPORTANTE: Eliminamos el 'type' de los secretos para que no choque
-    creds.pop("type", None)
-    
+    # 4. CONEXIÓN: Ahora 'creds' solo tiene lo que Google necesita para entrar
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -45,20 +52,21 @@ nombres = sorted([
     "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"
 ])
 
-# --- LÓGICA ---
 fecha_hoy = date.today().strftime("%d/%m/%Y")
 
+# --- LÓGICA DE DATOS ---
 try:
-    df_asistencia = conn.read(ttl=0)
+    # IMPORTANTE: Le pasamos la URL manualmente aquí
+    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
-except Exception as e:
-    st.warning("No se pudo conectar con la planilla.")
+except Exception:
     df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 # Presentes hoy
 presentes_hoy = []
 if not df_asistencia.empty:
+    df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
     presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
 
 st.write(f"📅 **Hoy es:** {fecha_hoy}")
@@ -72,5 +80,6 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(data=updated_df)
+            # También pasamos la URL aquí al actualizar
+            conn.update(spreadsheet=url_hoja, data=updated_df)
             st.rerun()
