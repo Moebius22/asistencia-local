@@ -1,21 +1,34 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import date
 
-st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
-
-# --- CONEXIÓN AUTOMÁTICA PURA ---
+# 1. Intentar limpiar la llave antes de que la use la conexión
 try:
-    # IMPORTANTE: No pasamos argumentos aquí para evitar el error "unexpected keyword argument"
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    if "private_key" in st.secrets["connections"]["gsheets"]:
+        # Reemplazamos los saltos de línea literales por los reales si fuera necesario
+        raw_key = st.secrets["connections"]["gsheets"]["private_key"]
+        clean_key = raw_key.replace("\\n", "\n")
 except Exception as e:
-    st.error(f"Error al conectar: {e}")
-    st.stop()
+    st.error("No se pudieron leer los Secrets correctamente.")
 
-st.title("Control de Asistencia Comunidad Pehuajó")
+# 2. Establecer la conexión
+# Dejamos que Streamlit busque solo los secretos en [connections.gsheets]
+conn = st.connection("gsheets", type=GSheetsConnection)
 
+# 3. Función para registrar (ejemplo)
+def registrar_asistencia(nombre, fecha):
+    url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    # Leer datos actuales
+    df = conn.read(spreadsheet=url)
+    
+    # Crear nueva fila
+    nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha]})
+    df_final = pd.concat([df, nuevo_registro], ignore_index=True)
+    
+    # Actualizar
+    conn.update(spreadsheet=url, data=df_final)
+    st.success(f"Registro exitoso para {nombre}")
+    
 # --- LISTA DE NOMBRES ---
 nombres = sorted([
     "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
