@@ -1,9 +1,3 @@
-Tenés razón, es mucho más fácil si te paso el bloque entero para que no tengas que andar mezclando partes. Aquí tenés el código final y completo, con el ajuste de la conexión para que no choque con tus Secrets.
-
-1. Código completo para tu app.py
-Copiá todo esto y reemplazá el contenido actual en GitHub:
-
-Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
