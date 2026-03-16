@@ -6,27 +6,28 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN CON FILTRO ESTRICTO ---
+# --- CONEXIÓN CON FILTRO ANTI-CHOQUE ---
 try:
     # 1. Obtenemos los secretos originales
     raw_creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. Guardamos la URL de la planilla (fuera del dict de conexión)
+    # 2. Guardamos la URL
     url_hoja = raw_creds.get("spreadsheet")
     
-    # 3. LISTA BLANCA: Solo estos campos acepta la función _connect()
-    # Si no están en esta lista, se eliminan.
-    campos_validos = ["type", "client_email", "private_key", "token_uri", "auth_uri"]
+    # 3. FILTRO ESTRICTO: Solo lo que Google necesita, pero SIN el campo 'type'
+    # para evitar el error de "multiple values for keyword argument 'type'"
+    auth_dict = {
+        "client_email": raw_creds.get("client_email"),
+        "private_key": raw_creds.get("private_key").replace("\\n", "\n") if raw_creds.get("private_key") else None,
+        "token_uri": raw_creds.get("token_uri"),
+        "auth_uri": raw_creds.get("auth_uri"),
+    }
     
-    # Creamos un diccionario nuevo SOLO con lo permitido
-    auth_dict = {k: v for k, v in raw_creds.items() if k in campos_validos}
+    # 4. Agregamos el type manualmente pero con el valor que la librería espera internamente
+    auth_dict["type"] = "service_account"
     
-    # 4. Curamos la private_key (esto es vital)
-    if "private_key" in auth_dict:
-        auth_dict["private_key"] = auth_dict["private_key"].replace("\\n", "\n")
-    
-    # 5. Conectamos con los campos filtrados
-    conn = st.connection("gsheets", type=GSheetsConnection, **auth_dict)
+    # 5. CONEXIÓN: Definimos el tipo de conexión explícitamente aquí
+    conn = st.connection("gsheets_final_v2", type=GSheetsConnection, **auth_dict)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
