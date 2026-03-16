@@ -11,26 +11,31 @@ try:
     # 1. Traemos los secretos
     raw_creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. Guardamos la URL para usarla después
+    # 2. Guardamos la URL
     url_hoja = raw_creds.get("spreadsheet")
     
-    # 3. LISTA BLANCA: Solo estos 5 campos acepta la librería internamente
-    auth_creds = {}
-    campos_validos = ["type", "client_email", "private_key", "auth_uri", "token_uri"]
+    # 3. CONSTRUIMOS EL DICCIONARIO DE CUENTA DE SERVICIO
+    # Esto es exactamente lo que GSheetsConnection busca por dentro
+    service_account_info = {
+        "type": "service_account",
+        "project_id": raw_creds.get("project_id"),
+        "private_key_id": raw_creds.get("private_key_id"),
+        "private_key": raw_creds.get("private_key").replace("\\n", "\n") if raw_creds.get("private_key") else None,
+        "client_email": raw_creds.get("client_email"),
+        "client_id": raw_creds.get("client_id"),
+        "auth_uri": raw_creds.get("auth_uri"),
+        "token_uri": raw_creds.get("token_uri"),
+        "auth_provider_x509_cert_url": raw_creds.get("auth_provider_x509_cert_url"),
+        "client_x509_cert_url": raw_creds.get("client_x509_cert_url")
+    }
     
-    for campo in campos_validos:
-        if campo in raw_creds:
-            valor = raw_creds[campo]
-            # Limpieza especial para la llave privada
-            if campo == "private_key":
-                valor = valor.replace("\\n", "\n")
-            auth_creds[campo] = valor
-
-    # 4. CONEXIÓN: Borramos el 'type' del diccionario para que no choque con el argumento del código
-    # Pero nos aseguramos de que el valor sea 'service_account'
-    auth_creds.pop("type", None)
-    
-    conn = st.connection("gsheets", type=GSheetsConnection, **auth_creds)
+    # 4. CONECTAMOS: Pasamos el 'service_account_info' como único argumento
+    # Esto evita que 'client_email' o 'project_id' anden sueltos y den error
+    conn = st.connection(
+        "gsheets", 
+        type=GSheetsConnection, 
+        service_account_info=service_account_info
+    )
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -39,7 +44,7 @@ except Exception as e:
 # --- ESTILOS ---
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
+    .titulo-principal { text-align: center; color: #1E3A8A; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
     .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
@@ -74,39 +79,4 @@ except Exception:
     df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
-st.write(f"📅 **Hoy es:** {fecha_hoy}")
-
-presentes_hoy = []
-if not df_asistencia.empty:
-    df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
-    presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
-
-# --- GRILLA DE BOTONES ---
-cols = st.columns(3)
-for i, persona in enumerate(nombres):
-    col = cols[i % 3]
-    if persona in presentes_hoy:
-        col.button(f"✔️ {persona}", key=f"btn_{i}", disabled=True, use_container_width=True)
-    else:
-        if col.button(persona, key=f"btn_{i}", use_container_width=True):
-            nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
-            updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(spreadsheet=url_hoja, data=updated_df)
-            st.toast(f"✅ Guardado: {persona}")
-            st.rerun()
-
-# --- REPORTE ---
-st.divider()
-st.header("📊 Reporte en Tiempo Real")
-fecha_reporte = st.date_input("Consultar fecha:", value=date.today())
-fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
-
-if not df_asistencia.empty:
-    reporte_dia = df_asistencia[df_asistencia['Fecha'] == fecha_rep_str]
-    if not reporte_dia.empty:
-        df_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
-        df_final.index = df_final.index + 1
-        df_final.index.name = "N°"
-        df_final = df_final.reset_index()
-        tabla_html = df_final.to_html(index=False, classes='reporte-tabla', border=1)
-        st.write(f"{tabla_html}<div class='total-box'>TOTAL ASISTENTES: {len(df_final)}</div>", unsafe_allow_html=True)
+st.write(
