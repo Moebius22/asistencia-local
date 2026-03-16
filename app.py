@@ -6,16 +6,16 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN CON FILTRO ANTI-CHOQUE ---
+# --- CONEXIÓN QUIRÚRGICA (EVITANDO DUPLICADOS) ---
 try:
-    # 1. Obtenemos los secretos originales
+    # 1. Obtenemos los secretos
     raw_creds = st.secrets["connections"]["gsheets"].to_dict()
     
     # 2. Guardamos la URL
     url_hoja = raw_creds.get("spreadsheet")
     
-    # 3. FILTRO ESTRICTO: Solo lo que Google necesita, pero SIN el campo 'type'
-    # para evitar el error de "multiple values for keyword argument 'type'"
+    # 3. CONSTRUCCIÓN MANUAL: Creamos el diccionario de autenticación
+    # IMPORTANTE: No incluimos la clave 'type' aquí adentro para que no choque
     auth_dict = {
         "client_email": raw_creds.get("client_email"),
         "private_key": raw_creds.get("private_key").replace("\\n", "\n") if raw_creds.get("private_key") else None,
@@ -23,22 +23,20 @@ try:
         "auth_uri": raw_creds.get("auth_uri"),
     }
     
-    # 4. Agregamos el type manualmente pero con el valor que la librería espera internamente
-    auth_dict["type"] = "service_account"
-    
-    # 5. CONEXIÓN: Definimos el tipo de conexión explícitamente aquí
-    conn = st.connection("gsheets_final_v2", type=GSheetsConnection, **auth_dict)
+    # 4. CONEXIÓN: Pasamos el tipo de conexión SOLO UNA VEZ aquí
+    # El diccionario auth_dict ya NO tiene la palabra 'type', así que no hay choque.
+    conn = st.connection("gsheets_final_definitiva", type=GSheetsConnection, **auth_dict)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
     st.stop()
 
-# --- ESTILOS ---
+# --- ESTILOS CSS ---
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; }
+    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
-    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
+    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; text-align: left; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
     .total-box { border: 2px solid black; padding: 10px; margin-top: 10px; font-weight: bold; font-size: 18px; text-align: center; background-color: #f0f0f0; color: black; }
     </style>
