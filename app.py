@@ -6,30 +6,12 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
+# --- CONEXIÓN ESTÁNDAR ---
 try:
-    # 1. Cargamos los secretos
-    conf_dict = st.secrets["connections"]["gsheets"].to_dict()
-    
-    # 2. Guardamos la URL y el email (los necesitaremos luego)
-    spreadsheet_url = conf_dict.get("spreadsheet")
-    
-    # 3. LIMPIEZA TOTAL: Borramos todo lo que hace fallar a GSheetsConnection
-    # Solo dejamos lo mínimo indispensable para autenticar
-    for key in ["spreadsheet", "project_id", "private_key_id", "client_id", 
-                "auth_uri", "token_uri", "auth_provider_x509_cert_url", 
-                "client_x509_cert_url", "universe_domain"]:
-        conf_dict.pop(key, None)
-    
-    # 4. Arreglamos la llave privada
-    if "private_key" in conf_dict:
-        conf_dict["private_key"] = conf_dict["private_key"].replace("\\n", "\n")
-    
-    # 5. Conexión manual con el diccionario "ultra-limpio"
-    conn = st.connection("gsheets", type=GSheetsConnection, **conf_dict)
-    
+    # Dejamos que Streamlit busque solo en [connections.gsheets]
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"Error de configuración: {e}")
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
 # Estilos CSS
@@ -63,7 +45,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    df_asistencia = conn.read(spreadsheet=spreadsheet_url, ttl=0)
+    df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 except Exception:
@@ -87,7 +69,7 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(spreadsheet=spreadsheet_url, data=updated_df)
+            conn.update(data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
