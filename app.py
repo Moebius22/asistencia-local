@@ -3,33 +3,19 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
 
-# Configuración inicial
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
 
-# --- CONEXIÓN ---
+# --- CONEXIÓN AUTOMÁTICA ---
 try:
-    # Leemos la configuración de secrets
-    conf = st.secrets["connections"]["gsheets"]
-    
-    # Limpiamos la llave privada
-    # El replace es para que los \n se conviertan en saltos de línea reales
-    clean_key = conf["private_key"].replace("\\n", "\n")
-    
-    # Conectamos pasando los parámetros básicos
-    conn = st.connection(
-        "gsheets",
-        type=GSheetsConnection,
-        client_email=conf["client_email"],
-        private_key=clean_key,
-        project_id=conf["project_id"]
-    )
-    url_hoja = conf["spreadsheet"]
+    # La librería lee automáticamente de [connections.gsheets]
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
 except Exception as e:
-    st.error(f"Error al conectar: {e}")
+    st.error(f"Error: {e}")
     st.stop()
 
 # --- INTERFAZ ---
-st.title("Asistencia Comunidad Pehuajó")
+st.title("Control de Asistencia Comunidad Pehuajó")
 
 nombres = sorted([
     "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
@@ -53,22 +39,22 @@ except:
     df = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
-st.write(f"📅 **Hoy es:** {fecha_hoy}")
+st.write(f"📅 **Hoy:** {fecha_hoy}")
 
-# Lista de presentes hoy
+# Presentes
 presentes = []
 if not df.empty:
     df['Fecha'] = df['Fecha'].astype(str)
     presentes = df[df['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
 
-# Botones
+# Grilla
 cols = st.columns(3)
 for i, nombre in enumerate(nombres):
     col = cols[i % 3]
     if nombre in presentes:
-        col.button(f"✔️ {nombre}", key=f"btn_{i}", disabled=True, use_container_width=True)
+        col.button(f"✔️ {nombre}", key=f"b_{i}", disabled=True, use_container_width=True)
     else:
-        if col.button(nombre, key=f"btn_{i}", use_container_width=True):
+        if col.button(nombre, key=f"b_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df, nueva_fila], ignore_index=True)
             conn.update(spreadsheet=url_hoja, data=updated_df)
