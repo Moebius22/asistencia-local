@@ -6,20 +6,30 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN AUTOMÁTICA ---
-# No pasamos NINGÚN argumento. Streamlit leerá todo de [connections.gsheets]
+# --- CONEXIÓN MANUAL REPARADA ---
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # 1. Cargamos los secretos a un diccionario
+    secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
+    
+    # 2. REPARACIÓN CRUCIAL: Forzamos los saltos de línea en la llave
+    if "private_key" in secrets_dict:
+        # Reemplazamos los \n de texto por saltos de línea reales
+        secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
+    
+    # 3. CONECTAMOS usando el diccionario ya reparado
+    # Usamos un nombre de conexión único para forzar a Streamlit a refrescar
+    conn = st.connection("gsheets_reparado", type=GSheetsConnection, **secrets_dict)
+    
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error de configuración: {e}")
     st.stop()
 
-# Estilos CSS
+# --- ESTILOS ---
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
+    .titulo-principal { text-align: center; color: #1E3A8A; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
-    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; text-align: left; color: black; }
+    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
     .total-box { border: 2px solid black; padding: 10px; margin-top: 10px; font-weight: bold; font-size: 18px; text-align: center; background-color: #f0f0f0; color: black; }
     </style>
@@ -45,7 +55,6 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # No especificamos la URL, la librería la tomará de los secretos
     df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
