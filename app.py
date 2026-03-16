@@ -12,14 +12,13 @@ try:
     creds = st.secrets["connections"]["gsheets"].to_dict()
     
     # 2. LIMPIEZA TOTAL: Borramos 'type' del diccionario para que no choque
-    # con el 'type' que definimos manualmente en st.connection
     creds.pop("type", None)
     
-    # 3. Curamos la llave privada (reemplazamos los \n de texto por saltos reales)
+    # 3. Curamos la llave privada
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # 4. CONEXIÓN: Ahora sí, solo hay UN 'type'
+    # 4. CONEXIÓN
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -74,7 +73,8 @@ if not df_asistencia.empty:
 cols = st.columns(3)
 for i, persona in enumerate(nombres):
     col = cols[i % 3]
-    if persona in p_hoy := presentes_hoy: # Pequeño truco para scannear rápido
+    # CORRECCIÓN DE SINTAXIS AQUÍ:
+    if persona in presentes_hoy:
         col.button(f"✔️ {persona}", key=f"btn_{i}", disabled=True, use_container_width=True)
     else:
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
@@ -92,4 +92,10 @@ fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
 
 if not df_asistencia.empty:
     reporte_dia = df_asistencia[df_asistencia['Fecha'] == fecha_rep_str]
-    if not reporte_dia.
+    if not reporte_dia.empty:
+        df_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
+        df_final.index = df_final.index + 1
+        df_final.index.name = "N°"
+        df_final = df_final.reset_index()
+        tabla_html = df_final.to_html(index=False, classes='reporte-tabla', border=1)
+        st.write(f"{tabla_html}<div class='total-box'>TOTAL ASISTENTES: {len(df_final)}</div>", unsafe_allow_html=True)
