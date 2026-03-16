@@ -5,14 +5,30 @@ from datetime import date
 
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
 
-# --- CONEXIÓN AUTOMÁTICA ---
-# En las versiones nuevas, no se pasan argumentos. La librería busca 
-# automáticamente en st.secrets["connections"]["gsheets"]
+# --- FORZAR CUENTA DE SERVICIO ---
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    # 1. Traemos los datos de los secrets
+    conf = st.secrets["connections"]["gsheets"]
+    
+    # 2. Construimos el diccionario que la librería exige para habilitar CRUD
+    # Es VITAL que los nombres de las llaves sean estos exactamente
+    creds = {
+        "project_id": conf["project_id"],
+        "client_email": conf["client_email"],
+        "private_key": conf["private_key"].replace("\\n", "\n"),
+        "type": "service_account",
+    }
+    
+    # 3. Creamos la conexión pasando las credenciales explícitamente
+    conn = st.connection(
+        "gsheets", 
+        type=GSheetsConnection, 
+        service_account_info=creds # Esto le dice: "No soy público, soy una cuenta de servicio"
+    )
+    url_hoja = conf["spreadsheet"]
+
 except Exception as e:
-    st.error(f"Error de configuración: {e}")
+    st.error(f"Error de autenticación: {e}")
     st.stop()
 
 st.title("Control de Asistencia Comunidad Pehuajó")
