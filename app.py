@@ -1,3 +1,9 @@
+Tenés razón, es mucho más fácil si te paso el bloque entero para que no tengas que andar mezclando partes. Aquí tenés el código final y completo, con el ajuste de la conexión para que no choque con tus Secrets.
+
+1. Código completo para tu app.py
+Copiá todo esto y reemplazá el contenido actual en GitHub:
+
+Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
@@ -6,16 +12,20 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
-# Extraemos los secretos y limpiamos la llave privada para evitar el ValueError
-secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
-if "private_key" in secrets_dict:
-    secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
+# --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
+try:
+    # Extraemos los secretos y corregimos la llave privada para evitar errores de formato
+    secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
+    if "private_key" in secrets_dict:
+        secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
+    
+    # Conectamos usando solo el diccionario para evitar el TypeError de "multiple values for type"
+    conn = st.connection("gsheets", **secrets_dict)
+except Exception as e:
+    st.error(f"Error de configuración en los Secrets: {e}")
+    st.stop()
 
-# Creamos la conexión pasando los secretos directamente
-conn = st.connection("gsheets", type=GSheetsConnection, **secrets_dict)
-
-# Estilos CSS
+# Estilos CSS para mejorar la apariencia
 st.markdown("""
     <style>
     .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
@@ -28,7 +38,7 @@ st.markdown("""
 
 st.markdown("<h1 class='titulo-principal'>Control de Asistencia Comunidad Pehuajó</h1>", unsafe_allow_html=True)
 
-# --- LISTA DE PERSONAS ---
+# --- LISTA DE PERSONAS ACTUALIZADA ---
 nombres = sorted([
     "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
     "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", 
@@ -46,6 +56,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
+    # Leemos la planilla. ttl=0 para datos en tiempo real.
     df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -71,8 +82,9 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
+            # Intentamos actualizar Google Sheets
             conn.update(data=updated_df)
-            st.toast(f"✅ Guardado en Google Sheets: {persona}")
+            st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
 # --- REPORTE ---
