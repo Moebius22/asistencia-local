@@ -79,4 +79,39 @@ except Exception:
     df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
-st.write(
+st.write(f"📅 **Hoy es:** {fecha_hoy}")
+
+presentes_hoy = []
+if not df_asistencia.empty:
+    df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
+    presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
+
+# --- GRILLA DE BOTONES ---
+cols = st.columns(3)
+for i, persona in enumerate(nombres):
+    col = cols[i % 3]
+    if persona in presentes_hoy:
+        col.button(f"✔️ {persona}", key=f"btn_{i}", disabled=True, use_container_width=True)
+    else:
+        if col.button(persona, key=f"btn_{i}", use_container_width=True):
+            nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
+            updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
+            conn.update(spreadsheet=url_hoja, data=updated_df)
+            st.toast(f"✅ Guardado: {persona}")
+            st.rerun()
+
+# --- REPORTE ---
+st.divider()
+st.header("📊 Reporte en Tiempo Real")
+fecha_reporte = st.date_input("Consultar fecha:", value=date.today())
+fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
+
+if not df_asistencia.empty:
+    reporte_dia = df_asistencia[df_asistencia['Fecha'] == fecha_rep_str]
+    if not reporte_dia.empty:
+        df_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
+        df_final.index = df_final.index + 1
+        df_final.index.name = "N°"
+        df_final = df_final.reset_index()
+        tabla_html = df_final.to_html(index=False, classes='reporte-tabla', border=1)
+        st.write(f"{tabla_html}<div class='total-box'>TOTAL ASISTENTES: {len(df_final)}</div>", unsafe_allow_html=True)
