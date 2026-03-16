@@ -6,24 +6,23 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN QUIRÚRGICA (EVITANDO DUPLICADOS) ---
+# --- CONEXIÓN QUIRÚRGICA ---
 try:
-    # 1. Obtenemos los secretos como un diccionario manipulable
+    # 1. Cargamos los secretos a un diccionario
     creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. LA CLAVE: Borramos 'type' del diccionario para que no choque con 
-    # el 'type' que pasamos manualmente en la función st.connection
+    # 2. SEPARACIÓN DE DATOS: Sacamos lo que NO es para autenticar
+    # Quitamos 'type' para que no choque con la función
     creds.pop("type", None)
+    # Quitamos 'spreadsheet' y lo guardamos en una variable aparte
+    url_hoja = creds.pop("spreadsheet", None) 
     
-    # 3. Guardamos la URL para usarla en los métodos read/update
-    url_hoja = creds.get("spreadsheet")
-    
-    # 4. Curamos la llave privada (arreglando los saltos de línea)
+    # 3. Curamos la llave privada (arreglando los saltos de línea)
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # 5. CONEXIÓN: Ahora solo hay UN 'type' (el de la clase GSheetsConnection)
-    conn = st.connection("gsheets_definitiva", type=GSheetsConnection, **creds)
+    # 4. CONEXIÓN: Ahora 'creds' solo tiene los campos de la cuenta de servicio
+    conn = st.connection("gsheets_final", type=GSheetsConnection, **creds)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -60,6 +59,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
+    # Usamos la URL que guardamos antes
     df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -84,8 +84,9 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
+            # También pasamos la URL aquí
             conn.update(spreadsheet=url_hoja, data=updated_df)
-            st.toast(f"✅ Guardado: {persona}")
+            st.toast(f"✅ Registro exitoso: {persona}")
             st.rerun()
 
 # --- REPORTE ---
