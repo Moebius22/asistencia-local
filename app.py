@@ -6,47 +6,20 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN QUIRÚRGICA ---
+# --- CONEXIÓN AUTOMÁTICA ---
+# No pasamos NINGÚN argumento. Streamlit leerá todo de [connections.gsheets]
 try:
-    # 1. Traemos los secretos
-    raw_creds = st.secrets["connections"]["gsheets"].to_dict()
-    
-    # 2. Guardamos la URL
-    url_hoja = raw_creds.get("spreadsheet")
-    
-    # 3. CONSTRUIMOS EL DICCIONARIO DE CUENTA DE SERVICIO
-    # Esto es exactamente lo que GSheetsConnection busca por dentro
-    service_account_info = {
-        "type": "service_account",
-        "project_id": raw_creds.get("project_id"),
-        "private_key_id": raw_creds.get("private_key_id"),
-        "private_key": raw_creds.get("private_key").replace("\\n", "\n") if raw_creds.get("private_key") else None,
-        "client_email": raw_creds.get("client_email"),
-        "client_id": raw_creds.get("client_id"),
-        "auth_uri": raw_creds.get("auth_uri"),
-        "token_uri": raw_creds.get("token_uri"),
-        "auth_provider_x509_cert_url": raw_creds.get("auth_provider_x509_cert_url"),
-        "client_x509_cert_url": raw_creds.get("client_x509_cert_url")
-    }
-    
-    # 4. CONECTAMOS: Pasamos el 'service_account_info' como único argumento
-    # Esto evita que 'client_email' o 'project_id' anden sueltos y den error
-    conn = st.connection(
-        "gsheets", 
-        type=GSheetsConnection, 
-        service_account_info=service_account_info
-    )
-    
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"Error de configuración: {e}")
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
-# --- ESTILOS ---
+# Estilos CSS
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; }
+    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
-    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
+    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; text-align: left; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
     .total-box { border: 2px solid black; padding: 10px; margin-top: 10px; font-weight: bold; font-size: 18px; text-align: center; background-color: #f0f0f0; color: black; }
     </style>
@@ -72,7 +45,8 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
+    # No especificamos la URL, la librería la tomará de los secretos
+    df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 except Exception:
@@ -96,7 +70,7 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(spreadsheet=url_hoja, data=updated_df)
+            conn.update(data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
