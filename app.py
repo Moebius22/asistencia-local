@@ -8,18 +8,19 @@ st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_ico
 
 # --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
 try:
-    # 1. Obtenemos los secretos
+    # 1. Obtenemos los secretos del bloque [connections.gsheets]
     conf_dict = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. Separamos la URL de la planilla del resto de las credenciales
-    # Esto evita el error de "unexpected keyword argument 'spreadsheet'"
+    # 2. Extraemos la URL de la planilla y la sacamos del diccionario de conexión
     spreadsheet_url = conf_dict.pop("spreadsheet", None)
     
-    # 3. Limpiamos la llave privada
+    # 3. Limpieza de seguridad: Quitamos parámetros que a veces causan conflicto en la conexión inicial
+    # Pero nos aseguramos de que la private_key esté perfecta
     if "private_key" in conf_dict:
         conf_dict["private_key"] = conf_dict["private_key"].replace("\\n", "\n")
     
-    # 4. Conectamos usando las credenciales limpias
+    # 4. CONEXIÓN: Pasamos el diccionario limpio. 
+    # Streamlit GSheets usará estos datos para crear el cliente de Google.
     conn = st.connection("gsheets", type=GSheetsConnection, **conf_dict)
     
 except Exception as e:
@@ -57,7 +58,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # Usamos la URL que separamos antes para leer
+    # Leemos usando la URL que separamos arriba
     df_asistencia = conn.read(spreadsheet=spreadsheet_url, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -83,7 +84,7 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            # Pasamos la URL también al actualizar
+            # Actualizamos pasando la URL explícitamente
             conn.update(spreadsheet=spreadsheet_url, data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
