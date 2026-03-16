@@ -8,18 +8,22 @@ st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_ico
 
 # --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
 try:
-    # Extraemos los secretos y corregimos la llave privada para evitar errores de formato
-    secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
-    if "private_key" in secrets_dict:
-        secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
+    # 1. Obtenemos los secretos del bloque [connections.gsheets]
+    conf_dict = st.secrets["connections"]["gsheets"].to_dict()
     
-    # Conectamos usando solo el diccionario para evitar el TypeError de "multiple values for type"
-    conn = st.connection("gsheets", **secrets_dict)
+    # 2. Limpiamos la llave privada (esto evita el ValueError)
+    if "private_key" in conf_dict:
+        conf_dict["private_key"] = conf_dict["private_key"].replace("\\n", "\n")
+    
+    # 3. CONEXIÓN MANUAL: Le pasamos la clase y los datos por separado
+    conn = st.connection("gsheets", type=GSheetsConnection, **conf_dict)
+    
 except Exception as e:
-    st.error(f"Error de configuración en los Secrets: {e}")
+    st.error(f"Hubo un problema con la configuración: {e}")
+    st.info("Revisá que en tus Secrets el bloque empiece con [connections.gsheets]")
     st.stop()
 
-# Estilos CSS para mejorar la apariencia
+# Estilos CSS
 st.markdown("""
     <style>
     .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
@@ -32,7 +36,7 @@ st.markdown("""
 
 st.markdown("<h1 class='titulo-principal'>Control de Asistencia Comunidad Pehuajó</h1>", unsafe_allow_html=True)
 
-# --- LISTA DE PERSONAS ACTUALIZADA ---
+# --- LISTA DE PERSONAS ---
 nombres = sorted([
     "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
     "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", 
@@ -50,7 +54,6 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # Leemos la planilla. ttl=0 para datos en tiempo real.
     df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
@@ -76,7 +79,6 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            # Intentamos actualizar Google Sheets
             conn.update(data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
