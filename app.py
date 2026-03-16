@@ -63,14 +63,14 @@ for i, nombre in enumerate(nombres):
     if nombre in presentes:
         col.button(f"✔️ {nombre}", key=f"b_{i}", disabled=True, use_container_width=True)
     else:
-       if col.button(nombre, key=f"b_{i}", use_container_width=True):
-            nueva_fila = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha_hoy]})
-            updated_df = pd.concat([df, nueva_fila], ignore_index=True)
-            
-            # --- CAMBIO AQUÍ: Usamos create en lugar de update para forzar la escritura ---
-            try:
-                conn.create(spreadsheet=url_hoja, data=updated_df)
-                st.success(f"✅ {nombre} registrado")
-                st.rerun()
-            except Exception as e:
-                st.error(f"No se pudo guardar: {e}")
+     if col.button(nombre, key=f"b_{i}", use_container_width=True):
+    nueva_fila = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha_hoy]})
+    updated_df = pd.concat([df, nueva_fila], ignore_index=True)
+    
+    try:
+        # Al estar autenticado como Service Account, esto ya no debería dar error
+        conn.update(spreadsheet=url_hoja, data=updated_df)
+        st.success(f"Registrado: {nombre}")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Error al guardar: {e}")
