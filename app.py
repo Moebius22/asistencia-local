@@ -6,44 +6,38 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN MANUAL QUIRÚRGICA ---
+# --- CONEXIÓN CON FILTRO ESTRICTO ---
 try:
-    # 1. Traemos todos los secretos
+    # 1. Obtenemos los secretos originales
     raw_creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. Guardamos la URL aparte (la usaremos para leer/escribir, no para conectar)
+    # 2. Guardamos la URL de la planilla (fuera del dict de conexión)
     url_hoja = raw_creds.get("spreadsheet")
     
-    # 3. FILTRADO: Solo tomamos los campos que la conexión acepta para autenticarse
-    # Esto elimina CUALQUIER error de "unexpected keyword argument"
-    auth_creds = {
-        "service_account_info": {
-            "type": raw_creds.get("type"),
-            "project_id": raw_creds.get("project_id"),
-            "private_key_id": raw_creds.get("private_key_id"),
-            "private_key": raw_creds.get("private_key").replace("\\n", "\n") if raw_creds.get("private_key") else None,
-            "client_email": raw_creds.get("client_email"),
-            "client_id": raw_creds.get("client_id"),
-            "auth_uri": raw_creds.get("auth_uri"),
-            "token_uri": raw_creds.get("token_uri"),
-            "auth_provider_x509_cert_url": raw_creds.get("auth_provider_x509_cert_url"),
-            "client_x509_cert_url": raw_creds.get("client_x509_cert_url")
-        }
-    }
+    # 3. LISTA BLANCA: Solo estos campos acepta la función _connect()
+    # Si no están en esta lista, se eliminan.
+    campos_validos = ["type", "client_email", "private_key", "token_uri", "auth_uri"]
     
-    # 4. Conectamos pasando la estructura que la librería espera internamente
-    conn = st.connection("gsheets", type=GSheetsConnection, **auth_creds)
+    # Creamos un diccionario nuevo SOLO con lo permitido
+    auth_dict = {k: v for k, v in raw_creds.items() if k in campos_validos}
+    
+    # 4. Curamos la private_key (esto es vital)
+    if "private_key" in auth_dict:
+        auth_dict["private_key"] = auth_dict["private_key"].replace("\\n", "\n")
+    
+    # 5. Conectamos con los campos filtrados
+    conn = st.connection("gsheets", type=GSheetsConnection, **auth_dict)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
     st.stop()
 
-# Estilos CSS
+# --- ESTILOS ---
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
+    .titulo-principal { text-align: center; color: #1E3A8A; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
-    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; text-align: left; color: black; }
+    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
     .total-box { border: 2px solid black; padding: 10px; margin-top: 10px; font-weight: bold; font-size: 18px; text-align: center; background-color: #f0f0f0; color: black; }
     </style>
