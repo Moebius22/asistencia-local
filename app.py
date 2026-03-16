@@ -6,18 +6,21 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
+# --- CONEXIÓN MANUAL Y SEGURA ---
 try:
-    # 1. Cargamos los secretos
+    # 1. Obtenemos el diccionario de secretos
     creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. Curamos la llave (por si acaso)
+    # 2. Sacamos la URL para que no moleste en la autenticación
+    url_hoja = creds.pop("spreadsheet", None)
+    
+    # 3. Limpiamos la llave privada (quitamos errores de formato)
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # 3. CONEXIÓN SIN 'type': Streamlit usará el 'type' que está en tus Secrets
-    # Pasamos los creds directamente
-    conn = st.connection("gsheets", **creds)
+    # 4. CONEXIÓN DIRECTA: 
+    # Usamos 'gsheets' como nombre, pero le pasamos la clase y los creds por separado
+    conn = st.connection("gsheets_conn", type=GSheetsConnection, **creds)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
@@ -54,8 +57,6 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # Usamos la URL que está en los secretos (spreadsheet)
-    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
