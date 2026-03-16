@@ -8,19 +8,22 @@ st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_ico
 
 # --- CONEXIÓN SEGURA A GOOGLE SHEETS ---
 try:
-    # 1. Obtenemos los secretos del bloque [connections.gsheets]
+    # 1. Obtenemos los secretos
     conf_dict = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. Limpiamos la llave privada (esto evita el ValueError)
+    # 2. Separamos la URL de la planilla del resto de las credenciales
+    # Esto evita el error de "unexpected keyword argument 'spreadsheet'"
+    spreadsheet_url = conf_dict.pop("spreadsheet", None)
+    
+    # 3. Limpiamos la llave privada
     if "private_key" in conf_dict:
         conf_dict["private_key"] = conf_dict["private_key"].replace("\\n", "\n")
     
-    # 3. CONEXIÓN MANUAL: Le pasamos la clase y los datos por separado
+    # 4. Conectamos usando las credenciales limpias
     conn = st.connection("gsheets", type=GSheetsConnection, **conf_dict)
     
 except Exception as e:
     st.error(f"Hubo un problema con la configuración: {e}")
-    st.info("Revisá que en tus Secrets el bloque empiece con [connections.gsheets]")
     st.stop()
 
 # Estilos CSS
@@ -54,7 +57,8 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    df_asistencia = conn.read(ttl=0)
+    # Usamos la URL que separamos antes para leer
+    df_asistencia = conn.read(spreadsheet=spreadsheet_url, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 except Exception:
@@ -79,7 +83,8 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(data=updated_df)
+            # Pasamos la URL también al actualizar
+            conn.update(spreadsheet=spreadsheet_url, data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
