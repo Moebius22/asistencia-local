@@ -7,13 +7,27 @@ st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
 
 # --- CONEXIÓN AUTOMÁTICA ---
 try:
-    # No pasar parámetros aquí. La librería lee st.secrets["connections"]["gsheets"]
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    # Obtenemos los secretos
+    conf = st.secrets["connections"]["gsheets"]
+    
+    # Truco: Si la llave viene con \n escapados, los convertimos en saltos reales
+    # Esto soluciona el "Invalid private key"
+    private_key = conf["private_key"].replace("\\n", "\n")
+    
+    # Creamos la conexión pasando los datos limpios
+    conn = st.connection(
+        "gsheets", 
+        type=GSheetsConnection,
+        project_id=conf["project_id"],
+        client_email=conf["client_email"],
+        private_key=private_key
+    )
+    url_hoja = conf["spreadsheet"]
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error: {e}")
     st.stop()
 
+# --- INTERFAZ ---
 st.title("Asistencia Comunidad Pehuajó")
 # --- LISTA DE NOMBRES ---
 nombres = sorted(["Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", "Corbalan, Jorge", "Corbalan, Mariano", "Corbalan, Miriam", "Corbalan, Roma", "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", "Galiani, Agustin", "Galvan, Norma", "Gazotti, Hugo", "Gazotti, Luciana", "Gazotti, Magali", "Gazotti, Thiago", "Gazotti, Victor Enrique", "Griego, Soledad", "Guaimas, Ana", "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", "Jorgelina", "Manton, Patricia", "Maria, Jose", "Mendieta, Gladis", "Pablo", "Paulina", "Peralta, Marta", "Peñaloza, Nicolas", "Pugnaloni, Dolores", "Rodriguez, Barbara", "Rodriguez, Franco", "Rodriguez, Jorge", "Rodriguez, Martin", "Sangregorio, Bautista", "Sangregorio, Nestor", "Sangregorio, Regina", "Sangregorio, Simon", "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"])
