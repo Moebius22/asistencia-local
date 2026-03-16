@@ -6,38 +6,20 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN CON FILTRADO ESTRICTO ---
+# --- CONEXIÓN AUTOMÁTICA PURA ---
+# No pasamos NADA. La librería DEBE leer de [connections.gsheets] por su cuenta.
 try:
-    # 1. Cargamos todos los secretos
-    raw_creds = st.secrets["connections"]["gsheets"].to_dict()
-    
-    # 2. Guardamos la URL de la hoja (la usaremos luego, no en la conexión)
-    url_hoja = raw_creds.get("spreadsheet")
-    
-    # 3. CREAMOS EL FILTRO (Lista Blanca)
-    # Solo pasamos estos campos que son el "corazón" de la cuenta de servicio
-    auth_creds = {}
-    # Intentaremos con los campos de identidad mínimos
-    for campo in ["client_email", "private_key", "token_uri"]:
-        if campo in raw_creds:
-            valor = raw_creds[campo]
-            if campo == "private_key":
-                valor = valor.replace("\\n", "\n")
-            auth_creds[campo] = valor
-
-    # 4. CONEXIÓN: Solo le enviamos el diccionario filtrado
-    conn = st.connection("gsheets_final_v2", type=GSheetsConnection, **auth_creds)
-    
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"Error de configuración: {e}")
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
 # --- ESTILOS CSS ---
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; }
+    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
-    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
+    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; text-align: left; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
     .total-box { border: 2px solid black; padding: 10px; margin-top: 10px; font-weight: bold; font-size: 18px; text-align: center; background-color: #f0f0f0; color: black; }
     </style>
@@ -63,11 +45,12 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    # Le pasamos la URL explícitamente aquí
-    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
+    # Si la URL está en los secretos, read() no necesita argumentos
+    df_asistencia = conn.read(ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
-except Exception:
+except Exception as e:
+    st.warning(f"No se pudieron leer datos: {e}")
     df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
@@ -88,8 +71,7 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            # Pasamos la URL también aquí
-            conn.update(spreadsheet=url_hoja, data=updated_df)
+            conn.update(data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
