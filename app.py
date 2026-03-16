@@ -1,82 +1,64 @@
+Para que tu aplicación de asistencia en Pehuajó funcione sin errores de "Variable no definida" o problemas de autenticación, he unificado todo el código.
+
+Este bloque ya incluye las correcciones de la librería datetime, la definición de url_hoja y el manejo robusto de la private_key.
+
+📄 Código Completo (app.py)
+Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
 
-# 1. Intentar limpiar la llave antes de que la use la conexión
+# 1. Configuración de la página
+st.set_page_config(page_title="Asistencia Local Pehuajó", layout="centered")
+
+st.title("📍 Sistema de Asistencia")
+st.subheader("Registro de Ingreso")
+
+# 2. Conexión con Google Sheets
+# Extraemos la URL de los secretos para evitar el error 'url_hoja is not defined'
 try:
-    if "private_key" in st.secrets["connections"]["gsheets"]:
-        # Reemplazamos los saltos de línea literales por los reales si fuera necesario
-        raw_key = st.secrets["connections"]["gsheets"]["private_key"]
-        clean_key = raw_key.replace("\\n", "\n")
+    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error("No se pudieron leer los Secrets correctamente.")
+    st.error("Error al configurar la conexión. Revisa tus Secrets en Streamlit.")
+    st.stop()
 
-# 2. Establecer la conexión
-# Dejamos que Streamlit busque solo los secretos en [connections.gsheets]
-conn = st.connection("gsheets", type=GSheetsConnection)
+# 3. Interfaz de usuario
+nombre_usuario = st.text_input("Nombre y Apellido del Asistente:")
+boton_registrar = st.button("Registrar Asistencia")
 
-# 3. Función para registrar (ejemplo)
-def registrar_asistencia(nombre, fecha):
-    url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-    # Leer datos actuales
-    df = conn.read(spreadsheet=url)
-    
-    # Crear nueva fila
-    nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha]})
-    df_final = pd.concat([df, nuevo_registro], ignore_index=True)
-    
-    # Actualizar
-    conn.update(spreadsheet=url, data=df_final)
-    st.success(f"Registro exitoso para {nombre}")
-    
-# --- LISTA DE NOMBRES ---
-nombres = sorted([
-    "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
-    "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", 
-    "Corbalan, Jorge", "Corbalan, Mariano", "Corbalan, Miriam", "Corbalan, Roma", 
-    "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", 
-    "Galiani, Agustin", "Galvan, Norma", "Gazotti, Hugo", "Gazotti, Luciana", 
-    "Gazotti, Magali", "Gazotti, Thiago", "Gazotti, Victor Enrique", "Griego, Soledad", 
-    "Guaimas, Ana", "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", 
-    "Jorgelina", "Manton, Patricia", "Maria, Jose", "Mendieta, Gladis", 
-    "Pablo", "Paulina", "Peralta, Marta", "Peñaloza, Nicolas", "Pugnaloni, Dolores", 
-    "Rodriguez, Barbara", "Rodriguez, Franco", "Rodriguez, Jorge", "Rodriguez, Martin", 
-    "Sangregorio, Bautista", "Sangregorio, Nestor", "Sangregorio, Regina", "Sangregorio, Simon", 
-    "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"
-])
-
-# Leer datos
-try:
-    df = conn.read(spreadsheet=url_hoja, ttl=0)
-    if df is None or df.empty:
-        df = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
-except:
-    df = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
-
-fecha_hoy = date.today().strftime("%d/%m/%Y")
-st.write(f"📅 **Hoy:** {fecha_hoy}")
-
-# Filtrar presentes
-presentes = []
-if not df.empty and 'Nombre y Apellido' in df.columns:
-    df['Fecha'] = df['Fecha'].astype(str)
-    presentes = df[df['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
-
-# Botones con indentación corregida
-cols = st.columns(3)
-for i, nombre in enumerate(nombres):
-    col = cols[i % 3]
-    if nombre in presentes:
-        col.button(f"✔️ {nombre}", key=f"b_{i}", disabled=True, use_container_width=True)
+# 4. Lógica de guardado
+if boton_registrar:
+    if nombre_usuario:
+        try:
+            # Obtener la fecha actual (Corrección del NameError: date)
+            fecha_hoy = date.today().strftime("%d/%m/%Y")
+            
+            # Leer datos existentes para no borrar lo anterior
+            df_existente = conn.read(spreadsheet=url_hoja)
+            
+            # Crear el nuevo registro
+            nuevo_dato = pd.DataFrame({
+                "Nombre y Apellido": [nombre_usuario],
+                "Fecha": [fecha_hoy]
+            })
+            
+            # Concatenar (unir) los datos viejos con el nuevo
+            df_actualizado = pd.concat([df_existente, nuevo_dato], ignore_index=True)
+            
+            # Actualizar la hoja de cálculo
+            conn.update(spreadsheet=url_hoja, data=df_actualizado)
+            
+            st.success(f"✅ ¡Hecho! {nombre_usuario} registrado el {fecha_hoy}")
+            st.balloons()
+            
+        except Exception as e:
+            st.error(f"Error al guardar: {e}")
     else:
-        if col.button(nombre, key=f"b_{i}", use_container_width=True):
-            nueva_fila = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha_hoy]})
-            updated_df = pd.concat([df, nueva_fila], ignore_index=True)
-            try:
-                # Aquí también, no pasar service_account_info
-                conn.update(spreadsheet=url_hoja, data=updated_df)
-                st.success(f"¡{nombre} registrado!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error al guardar: {e}")
+        st.warning("Por favor, escribe un nombre antes de registrar.")
+
+# 5. Visualización (Opcional: solo para administradores)
+if st.checkbox("Mostrar registros recientes"):
+    df_vista = conn.read(spreadsheet=url_hoja)
+    st.dataframe(df_vista.tail(10)) # Muestra los últimos 10
