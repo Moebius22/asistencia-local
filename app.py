@@ -5,16 +5,27 @@ from datetime import date
 
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
 
-# --- CONEXIÓN AUTOMÁTICA ---
+# --- CONEXIÓN SEGURA (EXTRAYENDO DE SECRETS) ---
 try:
-    # La librería busca sola en [connections.gsheets]
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    conf = st.secrets["connections"]["gsheets"]
+    
+    # Reconstruimos el diccionario de credenciales sin escribir la llave aquí
+    creds = {
+        "type": "service_account",
+        "project_id": conf["project_id"],
+        "private_key": conf["private_key"].replace("\\n", "\n"),
+        "client_email": conf["client_email"],
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
+    
+    conn = st.connection("gsheets", type=GSheetsConnection, service_account_info=creds)
+    url_hoja = conf["spreadsheet"]
 except Exception as e:
-    st.error(f"Error al conectar: {e}")
+    st.error(f"Error de configuración: {e}")
     st.stop()
 
-st.title("Asistencia Comunidad Pehuajó")
+# --- INTERFAZ Y LÓGICA ---
+st.title("Control de Asistencia Comunidad Pehuajó")
 
 # --- LISTA DE NOMBRES ---
 nombres = sorted(["Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", "Corbalan, Jorge", "Corbalan, Mariano", "Corbalan, Miriam", "Corbalan, Roma", "Corbalan, Ruth", "Corbalan, Sandra", "Cornero, Natalia", "Galeano, Lorenzo", "Galiani, Agustin", "Galvan, Norma", "Gazotti, Hugo", "Gazotti, Luciana", "Gazotti, Magali", "Gazotti, Thiago", "Gazotti, Victor Enrique", "Griego, Soledad", "Guaimas, Ana", "Guzzo, Antonia", "Guzzo, Francisco", "Guzzo, Luca", "Guzzo, Sara", "Jorgelina", "Manton, Patricia", "Maria, Jose", "Mendieta, Gladis", "Pablo", "Paulina", "Peralta, Marta", "Peñaloza, Nicolas", "Pugnaloni, Dolores", "Rodriguez, Barbara", "Rodriguez, Franco", "Rodriguez, Jorge", "Rodriguez, Martin", "Sangregorio, Bautista", "Sangregorio, Nestor", "Sangregorio, Regina", "Sangregorio, Simon", "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"])
@@ -26,9 +37,8 @@ except:
     df = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
-st.write(f"📅 **Hoy es:** {fecha_hoy}")
+st.write(f"📅 **Hoy:** {fecha_hoy}")
 
-# Presentes
 presentes = []
 if not df.empty:
     df['Fecha'] = df['Fecha'].astype(str)
@@ -44,5 +54,6 @@ for i, nombre in enumerate(nombres):
         if col.button(nombre, key=f"b_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df, nueva_fila], ignore_index=True)
+            # El update ahora no debería fallar porque la conexión es "pura"
             conn.update(spreadsheet=url_hoja, data=updated_df)
             st.rerun()
