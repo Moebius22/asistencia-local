@@ -1,9 +1,4 @@
-Para que tu aplicación de asistencia en Pehuajó funcione sin errores de "Variable no definida" o problemas de autenticación, he unificado todo el código.
 
-Este bloque ya incluye las correcciones de la librería datetime, la definición de url_hoja y el manejo robusto de la private_key.
-
-📄 Código Completo (app.py)
-Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
