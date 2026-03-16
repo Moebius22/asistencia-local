@@ -6,12 +6,23 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN ESTÁNDAR ---
-# No le pasamos NADA extra. Streamlit buscará en [connections.gsheets]
+# --- CONEXIÓN FORZADA Y SEGURA ---
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # 1. Obtenemos los secretos como un diccionario limpio
+    # Usamos .to_dict() para poder manipular los datos
+    creds_dict = st.secrets["connections"]["gsheets"].to_dict()
+    
+    # 2. LIMPIEZA DE LLAVE (Crucial): 
+    # Forzamos que los saltos de línea sean reales y eliminamos espacios locos
+    if "private_key" in creds_dict:
+        # Primero quitamos comillas accidentales y luego arreglamos los saltos de línea
+        clean_key = creds_dict["private_key"].strip().replace("\\n", "\n")
+        creds_dict["private_key"] = clean_key
+
+    # 3. CONEXIÓN: Le pasamos los secretos ya "curados" manualmente
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    st.error(f"Error de configuración: {e}")
     st.stop()
 
 # Estilos CSS
