@@ -6,30 +6,35 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN MANUAL REPARADA ---
+# --- CONEXIÓN QUIRÚRGICA (EVITANDO DUPLICADOS) ---
 try:
-    # 1. Cargamos los secretos a un diccionario
-    secrets_dict = st.secrets["connections"]["gsheets"].to_dict()
+    # 1. Obtenemos los secretos como un diccionario manipulable
+    creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. REPARACIÓN CRUCIAL: Forzamos los saltos de línea en la llave
-    if "private_key" in secrets_dict:
-        # Reemplazamos los \n de texto por saltos de línea reales
-        secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
+    # 2. LA CLAVE: Borramos 'type' del diccionario para que no choque con 
+    # el 'type' que pasamos manualmente en la función st.connection
+    creds.pop("type", None)
     
-    # 3. CONECTAMOS usando el diccionario ya reparado
-    # Usamos un nombre de conexión único para forzar a Streamlit a refrescar
-    conn = st.connection("gsheets_reparado", type=GSheetsConnection, **secrets_dict)
+    # 3. Guardamos la URL para usarla en los métodos read/update
+    url_hoja = creds.get("spreadsheet")
+    
+    # 4. Curamos la llave privada (arreglando los saltos de línea)
+    if "private_key" in creds:
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    
+    # 5. CONEXIÓN: Ahora solo hay UN 'type' (el de la clase GSheetsConnection)
+    conn = st.connection("gsheets_definitiva", type=GSheetsConnection, **creds)
     
 except Exception as e:
     st.error(f"Error de configuración: {e}")
     st.stop()
 
-# --- ESTILOS ---
+# --- ESTILOS CSS ---
 st.markdown("""
     <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; }
+    .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
     .reporte-tabla { border-collapse: collapse; width: 100%; border: 2px solid black; }
-    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; color: black; }
+    .reporte-tabla th, .reporte-tabla td { border: 1px solid black !important; padding: 8px; text-align: left; color: black; }
     .stButton>button { border-radius: 5px; height: 2.8em; font-size: 13px; margin-bottom: 5px; }
     .total-box { border: 2px solid black; padding: 10px; margin-top: 10px; font-weight: bold; font-size: 18px; text-align: center; background-color: #f0f0f0; color: black; }
     </style>
@@ -55,7 +60,7 @@ nombres = sorted([
 
 # --- LECTURA DE DATOS ---
 try:
-    df_asistencia = conn.read(ttl=0)
+    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
     if df_asistencia is None or df_asistencia.empty or 'Nombre y Apellido' not in df_asistencia.columns:
         df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 except Exception:
@@ -79,7 +84,7 @@ for i, persona in enumerate(nombres):
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
-            conn.update(data=updated_df)
+            conn.update(spreadsheet=url_hoja, data=updated_df)
             st.toast(f"✅ Guardado: {persona}")
             st.rerun()
 
