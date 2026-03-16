@@ -1,54 +1,36 @@
-¡Esto parece una comedia de enredos! Lo que sucede es que la versión de la librería streamlit-gsheets que tienes instalada es probablemente la más reciente, y ha quitado el soporte para el argumento service_account_info que antes funcionaba.
-
-Vamos a volver a la base, pero con un truco de "limpieza total" que no puede fallar. Vamos a pasarle a la conexión únicamente los campos que Google exige (los del JSON), pero uno por uno, para que la librería no vea nada "extraño" como spreadsheet o project_id y se queje.
-
-🛠️ 1. Código definitivo para app.py
-Borrá todo y pegá esto. Es el método más compatible de todos:
-
-Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
 
-st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
+# Configuración inicial
+st.set_page_config(page_title="Asistencia Pehuajó", layout="centered")
 
-# --- CONEXIÓN MANUAL PASO A PASO ---
+# --- CONEXIÓN ---
 try:
-    # 1. Obtenemos el diccionario de los secretos
-    # Accedemos a la sección principal
+    # Leemos la configuración de secrets
     conf = st.secrets["connections"]["gsheets"]
     
-    # 2. Guardamos la URL de la hoja para después
-    url_hoja = conf["spreadsheet"]
+    # Limpiamos la llave privada
+    # El replace es para que los \n se conviertan en saltos de línea reales
+    clean_key = conf["private_key"].replace("\\n", "\n")
     
-    # 3. Arreglamos la llave privada (reemplazando los \n de texto por reales)
-    pk = conf["private_key"].replace("\\n", "\n")
-    
-    # 4. CONEXIÓN: Pasamos solo los argumentos que gspread acepta oficialmente
+    # Conectamos pasando los parámetros básicos
     conn = st.connection(
         "gsheets",
         type=GSheetsConnection,
         client_email=conf["client_email"],
-        private_key=pk,
+        private_key=clean_key,
         project_id=conf["project_id"]
     )
-    
+    url_hoja = conf["spreadsheet"]
 except Exception as e:
-    st.error(f"Error de configuración: {e}")
+    st.error(f"Error al conectar: {e}")
     st.stop()
 
-# --- ESTILOS ---
-st.markdown("""
-    <style>
-    .titulo-principal { text-align: center; color: #1E3A8A; font-family: sans-serif; }
-    .stButton>button { border-radius: 5px; height: 3em; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- INTERFAZ ---
+st.title("Asistencia Comunidad Pehuajó")
 
-st.markdown("<h1 class='titulo-principal'>Control de Asistencia Comunidad Pehuajó</h1>", unsafe_allow_html=True)
-
-# --- LISTA DE PERSONAS ---
 nombres = sorted([
     "Atun, Adela", "Cervigno, Amalia", "Cervigno, Ernesto", "Cervigno, Rocio", 
     "Cervigno, Rosana", "Corbalan, Ana Laura", "Corbalan, Andrea", "Corbalan, Carlos", 
@@ -64,32 +46,30 @@ nombres = sorted([
     "Tobio, Carla", "Villalba, Dario", "Villalba, Santiago", "Villalba, Tomas", "Villar, Clara"
 ])
 
-# --- LECTURA DE DATOS ---
+# Leer datos
 try:
-    df_asistencia = conn.read(spreadsheet=url_hoja, ttl=0)
-    if df_asistencia is None or df_asistencia.empty:
-        df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
-except Exception:
-    df_asistencia = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
+    df = conn.read(spreadsheet=url_hoja, ttl=0)
+except:
+    df = pd.DataFrame(columns=["Nombre y Apellido", "Fecha"])
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
 st.write(f"📅 **Hoy es:** {fecha_hoy}")
 
-# Filtro de presentes
-presentes_hoy = []
-if not df_asistencia.empty:
-    df_asistencia['Fecha'] = df_asistencia['Fecha'].astype(str)
-    presentes_hoy = df_asistencia[df_asistencia['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
+# Lista de presentes hoy
+presentes = []
+if not df.empty:
+    df['Fecha'] = df['Fecha'].astype(str)
+    presentes = df[df['Fecha'] == fecha_hoy]['Nombre y Apellido'].tolist()
 
-# --- GRILLA DE BOTONES ---
+# Botones
 cols = st.columns(3)
-for i, persona in enumerate(nombres):
+for i, nombre in enumerate(nombres):
     col = cols[i % 3]
-    if persona in presentes_hoy:
-        col.button(f"✔️ {persona}", key=f"btn_{i}", disabled=True, use_container_width=True)
+    if nombre in presentes:
+        col.button(f"✔️ {nombre}", key=f"btn_{i}", disabled=True, use_container_width=True)
     else:
-        if col.button(persona, key=f"btn_{i}", use_container_width=True):
-            nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
-            updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
+        if col.button(nombre, key=f"btn_{i}", use_container_width=True):
+            nueva_fila = pd.DataFrame({"Nombre y Apellido": [nombre], "Fecha": [fecha_hoy]})
+            updated_df = pd.concat([df, nueva_fila], ignore_index=True)
             conn.update(spreadsheet=url_hoja, data=updated_df)
             st.rerun()
