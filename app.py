@@ -6,26 +6,26 @@ from datetime import date
 # --- CONFIGURACIÓN DE LA APP ---
 st.set_page_config(page_title="Asistencia Pehuajó", layout="centered", page_icon="📋")
 
-# --- CONEXIÓN FORZADA Y SEGURA ---
+# --- CONEXIÓN QUIRÚRGICA ---
 try:
-    # 1. Obtenemos los secretos como un diccionario limpio
-    # Usamos .to_dict() para poder manipular los datos
-    creds_dict = st.secrets["connections"]["gsheets"].to_dict()
+    # 1. Cargamos los secretos
+    creds = st.secrets["connections"]["gsheets"].to_dict()
     
-    # 2. LIMPIEZA DE LLAVE (Crucial): 
-    # Forzamos que los saltos de línea sean reales y eliminamos espacios locos
-    if "private_key" in creds_dict:
-        # Primero quitamos comillas accidentales y luego arreglamos los saltos de línea
-        clean_key = creds_dict["private_key"].strip().replace("\\n", "\n")
-        creds_dict["private_key"] = clean_key
-
-    # 3. CONEXIÓN: Le pasamos los secretos ya "curados" manualmente
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
+    # 2. LIMPIEZA TOTAL: Borramos 'type' del diccionario para que no choque
+    # con el 'type' que definimos manualmente en st.connection
+    creds.pop("type", None)
+    
+    # 3. Curamos la llave privada (reemplazamos los \n de texto por saltos reales)
+    if "private_key" in creds:
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    
+    # 4. CONEXIÓN: Ahora sí, solo hay UN 'type'
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Error de configuración: {e}")
     st.stop()
 
-# Estilos CSS
+# --- ESTILOS CSS ---
 st.markdown("""
     <style>
     .titulo-principal { text-align: center; color: #1E3A8A; font-family: Arial, sans-serif; }
@@ -74,14 +74,14 @@ if not df_asistencia.empty:
 cols = st.columns(3)
 for i, persona in enumerate(nombres):
     col = cols[i % 3]
-    if persona in presentes_hoy:
+    if persona in p_hoy := presentes_hoy: # Pequeño truco para scannear rápido
         col.button(f"✔️ {persona}", key=f"btn_{i}", disabled=True, use_container_width=True)
     else:
         if col.button(persona, key=f"btn_{i}", use_container_width=True):
             nueva_fila = pd.DataFrame({"Nombre y Apellido": [persona], "Fecha": [fecha_hoy]})
             updated_df = pd.concat([df_asistencia, nueva_fila], ignore_index=True)
             conn.update(data=updated_df)
-            st.toast(f"✅ Guardado: {persona}")
+            st.toast(f"✅ Registro exitoso: {persona}")
             st.rerun()
 
 # --- REPORTE ---
@@ -92,10 +92,4 @@ fecha_rep_str = fecha_reporte.strftime("%d/%m/%Y")
 
 if not df_asistencia.empty:
     reporte_dia = df_asistencia[df_asistencia['Fecha'] == fecha_rep_str]
-    if not reporte_dia.empty:
-        df_final = reporte_dia[['Nombre y Apellido']].reset_index(drop=True)
-        df_final.index = df_final.index + 1
-        df_final.index.name = "N°"
-        df_final = df_final.reset_index()
-        tabla_html = df_final.to_html(index=False, classes='reporte-tabla', border=1)
-        st.write(f"{tabla_html}<div class='total-box'>TOTAL ASISTENTES: {len(df_final)}</div>", unsafe_allow_html=True)
+    if not reporte_dia.
