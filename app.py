@@ -27,73 +27,90 @@ asistentes_frecuentes = [
     "Villalba, Santiago", "Villalba, Tomas"
 ]
 
-# 2. Conexión con Google Sheets (Optimizada para no saturar la cuota)
+# 2. Conexión y Limpieza
 try:
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
-    
-    # Reducimos la frecuencia de lectura a una cada 10 segundos mínimo
-    df_actual = conn.read(spreadsheet=url_hoja, ttl=10).dropna(how='all')
+    df_actual = conn.read(spreadsheet=url_hoja, ttl=10)
+    df_actual = df_actual.loc[:, ~df_actual.columns.str.contains('^Unnamed')].dropna(how='all')
 except Exception as e:
-    if "429" in str(e):
-        st.error("⏳ Google está un poco saturado. Por favor, espera 15 segundos y refresca la página.")
-    else:
-        st.error(f"Error de conexión: {e}")
+    st.error(f"Error: {e}")
     st.stop()
 
-# --- LÓGICA DE MARCADO ---
 fecha_hoy = date.today().strftime("%d/%m/%Y")
-
+ya_registrados = []
 if not df_actual.empty:
     df_actual["Fecha"] = df_actual["Fecha"].astype(str)
     ya_registrados = df_actual[df_actual["Fecha"] == fecha_hoy]["Nombre y Apellido"].unique().tolist()
-else:
-    ya_registrados = []
 
-# --- SECCIÓN 1: REGISTRO CON BOTONES ---
+# --- SECCIÓN 1: REGISTRO ---
 st.subheader("Seleccione para registrar ingreso:")
-busqueda = st.text_input("🔍 Buscar nombre en la lista:", placeholder="Escriba aquí...")
-
-lista_filtrada = [n for n in asistentes_frecuentes if busqueda.lower() in n.lower()]
+busqueda = st.text_input("🔍 Buscar nombre:", placeholder="Escriba aquí...")
+lista_filtrada = sorted([n for n in asistentes_frecuentes if busqueda.lower() in n.lower()])
 
 cols = st.columns(4)
 for i, nombre_persona in enumerate(lista_filtrada):
     with cols[i % 4]:
         esta_registrado = nombre_persona in ya_registrados
         label = f"✅ {nombre_persona.split(',')[0]}" if esta_registrado else nombre_persona
-        
         if st.button(label, key=f"btn_{i}_{nombre_persona}", use_container_width=True, disabled=esta_registrado):
-            try:
-                with st.spinner("Guardando..."):
-                    # Al guardar sí necesitamos el dato más fresco posible
-                    df_reciente = conn.read(spreadsheet=url_hoja, ttl=0).dropna(how='all')
-                    
-                    nuevo_registro = pd.DataFrame({
-                        "Nombre y Apellido": [nombre_persona], 
-                        "Fecha": [fecha_hoy]
-                    })
-                    
-                    df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
-                    conn.update(spreadsheet=url_hoja, data=df_final)
-                    
-                    st.toast(f"¡{nombre_persona} registrado!")
-                    # Esperamos un instante antes de reiniciar para que Google procese el cambio
-                    time.sleep(1)
-                    st.rerun()
-            except Exception as e:
-                st.error("Error al guardar. Posiblemente por exceso de intentos simultáneos. Reintenta en unos segundos.")
+            df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
+            df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
+            nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_persona], "Fecha": [fecha_hoy]})
+            df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
+            conn.update(spreadsheet=url_hoja, data=df_final)
+            st.rerun()
 
 st.markdown("---")
 
-# --- SECCIÓN 2: GESTIÓN ---
+# --- SECCIÓN 2: REPORTE HTML AMENO ---
+st.subheader("📊 Reporte de Asistencia")
+
+# Función para generar el HTML con estilo
+def generar_html_lindo(df):
+    estilo_css = """
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .titulo { color: #2E4053; text-align: center; margin-bottom: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; border: 1px solid #ddd; }
+        th { background-color: #F2F4F4; color: #1B2631; padding: 12px; text-align: left; border-bottom: 2px solid #AED6F1; }
+        td { padding: 10px; border-bottom: 1px solid #E5E8E8; color: #566573; }
+        tr:nth-child(even) { background-color: #FBFCFC; }
+        tr:hover { background-color: #EBF5FB; }
+    </style>
+    """
+    html_tabla = df.to_html(index=False, classes='table')
+    html_final = f"""
+    <html>
+    <head>{estilo_css}</head>
+    <body>
+        <h2 class="titulo">Asistencia Comunidad Pehuajó</h2>
+        <p style="text-align: center;">Reporte generado el: {fecha_hoy}</p>
+        {html_tabla}
+    </body>
+    </html>
+    """
+    return html_final
+
 col_del, col_rep = st.columns(2)
 
 with col_del:
-    if st.button("🗑️ Eliminar último registro", type="primary"):
-        df_corregido = df_actual.iloc[:-1]
-        conn.update(spreadsheet=url_hoja, data=df_corregido)
-        st.rerun()
+    if st.button("🗑️ Eliminar último registro", type="primary", use_container_width=True):
+        if not df_actual.empty:
+            conn.update(spreadsheet=url_hoja, data=df_actual.iloc[:-1])
+            st.rerun()
 
 with col_rep:
-    csv = df_actual.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Descargar CSV", data=csv, file_name=f"asistencia_{fecha_hoy}.csv")
+    if not df_actual.empty:
+        html_data = generar_html_lindo(df_actual)
+        st.download_button(
+            label="📄 Descargar Reporte Lindo (HTML)",
+            data=html_data,
+            file_name=f"Reporte_Pehuajo_{fecha_hoy}.html",
+            mime="text/html",
+            use_container_width=True
+        )
+
+# Vista previa rápida
+if st.checkbox("Ver tabla rápida"):
+    st.dataframe(df_actual.tail(10), use_container_width=True)
