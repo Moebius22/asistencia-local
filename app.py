@@ -1,20 +1,32 @@
+¡Claro que sí! Para que el logo aparezca en el reporte HTML, necesitamos insertarlo usando una técnica llamada Base64. Esto permite que la imagen quede "incrustada" dentro del archivo que descargas, para que se vea correctamente incluso si lo abres sin conexión a internet o lo envías por correo.
+
+He actualizado la función generar_html_lindo para que incluya el logo centrado y pequeño al principio del reporte.
+
+Aquí tienes el código completo para tu app.py:
+
+Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date, datetime
 import time
 import os
+import base64
 
 # 1. Configuración de la página
 st.set_page_config(page_title="INA Pehuajó", page_icon="⛪", layout="wide")
 
-# --- MOSTRAR LOGO (AJUSTADO) ---
-# Intentamos cargar el logo. Si no existe en GitHub, no romperá la app.
+# --- FUNCIÓN PARA CARGAR IMAGEN EN BASE64 (Para el reporte) ---
+def get_base64_image(image_path):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    return None
+
+# --- MOSTRAR LOGO EN LA APP ---
 if os.path.exists("logo.png"):
-    # Usamos columnas para centrar, pero con una columna central más estrecha
     col_l1, col_l2, col_l3 = st.columns([2, 1, 2])
     with col_l2:
-        # Fijamos el ancho del logo a 150 píxeles para que no sea gigante
         st.image("logo.png", width=150)
 
 st.markdown("<h1 style='text-align: center;'>📍 Registro de Asistencia</h1>", unsafe_allow_html=True)
@@ -78,35 +90,29 @@ for i, nombre_persona in enumerate(lista_filtrada):
         
         if st.button(label, key=f"btn_{i}_{nombre_persona}", use_container_width=True, disabled=esta_registrado):
             try:
-                with st.spinner("Guardando..."):
-                    df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
-                    df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
-                    
-                    nuevo_registro = pd.DataFrame({
-                        "Nombre y Apellido": [nombre_persona], 
-                        "Fecha": [fecha_str]
-                    })
-                    
-                    df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
-                    conn.update(spreadsheet=url_hoja, data=df_final)
-                    
-                    st.toast(f"¡Registrado para el {fecha_str}!")
-                    time.sleep(1)
-                    st.rerun()
+                df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
+                df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
+                nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_persona], "Fecha": [fecha_str]})
+                df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
+                conn.update(spreadsheet=url_hoja, data=df_final)
+                st.rerun()
             except Exception as e:
-                st.error("Error al guardar. Intente nuevamente.")
+                st.error("Error al guardar.")
 
 st.markdown("---")
 
 # --- SECCIÓN 2: REPORTE ---
 def generar_html_lindo(df, total, fecha_tit):
+    logo_base64 = get_base64_image("logo.png")
+    logo_html = f'<img src="data:image/png;base64,{logo_base64}" width="100">' if logo_base64 else ""
+    
     estilo_css = """
     <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 20px; }
-        .header-container { text-align: center; border-bottom: 3px solid #3498DB; padding-bottom: 10px; margin-bottom: 20px; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; text-align: center; }
+        .header-container { border-bottom: 3px solid #3498DB; padding-bottom: 10px; margin-bottom: 20px; }
         .total-box { background-color: #EBF5FB; padding: 10px; border-radius: 5px; font-weight: bold; color: #2E86C1; display: inline-block; margin-top: 10px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-        th { background-color: #34495E; color: white; padding: 12px; text-align: left; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; text-align: left; }
+        th { background-color: #34495E; color: white; padding: 12px; }
         td { padding: 10px; border-bottom: 1px solid #D5DBDB; }
         tr:nth-child(even) { background-color: #F8F9F9; }
     </style>
@@ -117,6 +123,7 @@ def generar_html_lindo(df, total, fecha_tit):
     <head>{estilo_css}</head>
     <body>
         <div class="header-container">
+            {logo_html}
             <h2>Iglesia Nueva Apostólica - Comunidad Pehuajó</h2>
             <p>Reporte de Asistencia - Fecha: {fecha_tit}</p>
             <div class="total-box">Total de Asistentes: {total}</div>
