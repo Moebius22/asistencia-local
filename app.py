@@ -8,7 +8,7 @@ st.set_page_config(page_title="Asistencia Pehuajó", page_icon="📍", layout="w
 
 st.title("📍 Registro de Asistencia - Pehuajó")
 
-# --- LISTA DE PERSONAS ACTUALIZADA ---
+# --- LISTA DE PERSONAS ---
 asistentes_frecuentes = [
     "Cervigno, Amalia", "Cervigno, Rocio", "Corbalan, Roma", "Corbalan, Ana Laura", 
     "Villar, Clara", "Galeano, Lorenzo", "Corbalan, Andrea", "Atun, Matias", 
@@ -30,86 +30,68 @@ asistentes_frecuentes = [
 try:
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
+    # Leer datos una vez al inicio para verificar estados
+    df_actual = conn.read(spreadsheet=url_hoja).dropna(how='all')
 except Exception as e:
-    st.error("Error: Revisa los Secrets en Streamlit Cloud.")
+    st.error("Error de conexión: Revisa los Secrets.")
     st.stop()
 
 # --- SECCIÓN 1: REGISTRO CON BOTONES ---
 st.subheader("Seleccione para registrar ingreso:")
+busqueda = st.text_input("🔍 Buscar nombre en la lista:", placeholder="Filtrar por apellido o nombre...")
 
-# Buscador rápido para no tener que scrollear tanto
-busqueda = st.text_input("🔍 Buscar nombre en la lista:", placeholder="Escriba para filtrar...")
-
-# Filtrar lista según búsqueda
 lista_filtrada = [n for n in asistentes_frecuentes if busqueda.lower() in n.lower()]
+fecha_hoy = date.today().strftime("%d/%m/%Y")
 
-# Mostrar botones en columnas (4 para que entren más en pantalla)
+# Verificar quiénes ya se registraron hoy
+ya_registrados = df_actual[df_actual["Fecha"] == fecha_hoy]["Nombre y Apellido"].tolist()
+
 cols = st.columns(4)
-
 for i, nombre_persona in enumerate(lista_filtrada):
     with cols[i % 4]:
-        # Usamos el nombre + el índice como KEY para evitar el error DuplicateElementId
-        if st.button(nombre_persona, key=f"btn_{i}_{nombre_persona}", use_container_width=True):
+        # Si ya está registrado hoy, el botón se deshabilita y cambia el texto
+        esta_registrado = nombre_persona in ya_registrados
+        label = f"✅ {nombre_persona}" if esta_registrado else nombre_persona
+        
+        if st.button(label, key=f"btn_{i}", use_container_width=True, disabled=esta_registrado):
             try:
-                with st.spinner(f"Registrando..."):
-                    fecha_hoy = date.today().strftime("%d/%m/%Y")
-                    
-                    # Leer datos actuales
-                    df_existente = conn.read(spreadsheet=url_hoja).dropna(how='all')
-                    
-                    # Crear nuevo registro
-                    nuevo_registro = pd.DataFrame({
-                        "Nombre y Apellido": [nombre_persona], 
-                        "Fecha": [fecha_hoy]
-                    })
-                    
-                    # Concatenar y actualizar
-                    df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-                    conn.update(spreadsheet=url_hoja, data=df_final)
-                    
-                    st.success(f"✅ {nombre_persona} registrado")
-                    st.balloons()
-                    st.rerun() # Evita duplicados al refrescar
+                nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_persona], "Fecha": [fecha_hoy]})
+                df_final = pd.concat([df_actual, nuevo_registro], ignore_index=True)
+                conn.update(spreadsheet=url_hoja, data=df_final)
+                st.success(f"Registrado: {nombre_persona}")
+                st.rerun()
             except Exception as e:
-                st.error(f"Error al guardar: {e}")
+                st.error(f"Error: {e}")
 
 st.markdown("---")
 
-# --- SECCIÓN 2: REGISTRO MANUAL Y REPORTES ---
-col_man, col_rep = st.columns(2)
+# --- SECCIÓN 2: ADMINISTRACIÓN Y ELIMINAR ---
+st.subheader("📊 Gestión de Registros")
 
-with col_man:
-    with st.expander("➕ Registrar alguien fuera de lista"):
-        nombre_manual = st.text_input("Nombre completo:", key="input_manual")
-        if st.button("Guardar Manual", key="btn_manual"):
-            if nombre_manual:
-                fecha_hoy = date.today().strftime("%d/%m/%Y")
-                df_existente = conn.read(spreadsheet=url_hoja).dropna(how='all')
-                nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_manual], "Fecha": [fecha_hoy]})
-                df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-                conn.update(spreadsheet=url_hoja, data=df_final)
-                st.success(f"✅ {nombre_manual} registrado")
-                st.rerun()
+col_info, col_del = st.columns([2, 1])
 
-with col_rep:
-    st.write("📊 **Administración**")
-    try:
-        df_reporte = conn.read(spreadsheet=url_hoja).dropna(how='all')
-        csv = df_reporte.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Descargar Reporte (CSV)",
-            data=csv,
-            file_name=f"asistencia_{date.today()}.csv",
-            mime="text/csv",
-            key="btn_download",
-            use_container_width=True
-        )
-    except:
-        st.info("Sin datos para reporte.")
+with col_info:
+    if st.checkbox("Ver lista completa de hoy"):
+        st.dataframe(df_actual[df_actual["Fecha"] == fecha_hoy], use_container_width=True)
 
-# --- SECCIÓN 3: TABLA ---
-if st.checkbox("Ver últimos 10 registros"):
-    try:
-        st.table(df_reporte.tail(10))
-    except:
-        st.write("No hay registros aún.")
+with col_del:
+    st.warning("🗑️ Zona de Corrección")
+    if st.button("Eliminar ÚLTIMO registro", type="secondary", use_container_width=True):
+        if not df_actual.empty:
+            # Quitamos la última fila
+            df_corregido = df_actual.iloc[:-1]
+            conn.update(spreadsheet=url_ho_ja, data=df_corregido)
+            st.success("Último registro eliminado correctamente.")
+            st.rerun()
+        else:
+            st.info("No hay registros para eliminar.")
+
+# --- SECCIÓN 3: REPORTE ---
+csv = df_actual.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="📥 Descargar Reporte Completo (CSV)",
+    data=csv,
+    file_name=f"asistencia_{date.today()}.csv",
+    mime="text/csv",
+    use_container_width=False
+)
