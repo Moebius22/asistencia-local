@@ -41,7 +41,7 @@ asistentes_frecuentes = [
     "Rodriguez, Martin", "Cornero, Natalia", "Rodriguez, Franco", "Sangregorio, Nestor", 
     "Rodriguez, Barbara", "Sangregorio, Regina", "Sangregorio, Bautista", 
     "Sangregorio, Simon", "Corbalan, Cosby", "Villalba, Dario", "Maria, Jose", 
-    "Villalba, Santiago", "Villalba, Tomas"
+    "Villalba, Santiago", "Villalba, Tomas", "Bequi", "Candela", "Scalora", "France", "Ravlich", "Jankulick", "Gantus", "Sojak", "Legal Cristian"
 ]
 
 # 2. Conexión y Manejo de Datos Vacíos
