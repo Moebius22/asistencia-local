@@ -10,12 +10,7 @@ st.title("📍 Registro de Asistencia - Pehuajó")
 
 # --- LISTA DE PERSONAS (Editalos aquí) ---
 asistentes_frecuentes = [
-    "Juan Pérez", 
-    "María García", 
-    "Carlos López", 
-    "Ana Martínez",
-    "Michael",
-    "Ali"
+    "Cervigno, Amalia", "Cervigno, Rocio", "Corbalan, Roma", "Corbalan, Ana Laura", "Villar, Clara", "Galeano, Lorenzo", "Corbalan, Andrea", "Atun, Matias", "Atun, Adela", "Corbalan, Carlos", "Corbalan, Jorge", "Mendieta, Gladis", "Corbalan, Mariano", Corbalan, Miriam", "Corbalan, Sandra", "Cervigno, Ernesto", "Cervigno, Rosana", "Guaimas, Ana", "Galiani, Agustin", "Gazotti, Luciana", "Paulina", "Pablo", "Gazotti, Victor", "Galvan, Norma", "Gazotti, Thiago", "Gazotti, Victor", "Jorgelina", "Griego, Soledad", "Guzzo, Francisco", "Tobio, Carla", "Guzzo, Luca", "Guzzo, Sara", "Guzzo, Antonia", "Nanton, Patricia", "Gazotti, Magali", "Martinez, Gladis", "Peñaloza, Nicolas", "Peralta, Marta", "Peralta, Federico", "Pugnaloni, Dolores", "Rodriguez, Jorge", "Corbalan, Ruth", "Rodriguez, Martin", "Cornero, Natalia", "Rodriguez, Franco", "Sangregorio, Nestor", "Rodriguez, Barbara", "Sangregorio, Regina", "Sangregorio, Bautista", "Sangregorio, Simon", "Corbalan, Cosby", "Villalba, Dario", "Maria, Jose", "Villalba, Santiago", "Villalba, Tomas"
 ]
 
 # 2. Conexión con Google Sheets
