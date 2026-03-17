@@ -3,55 +3,90 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
 
-# Configuración de la interfaz
-st.set_page_config(page_title="Asistencia Local Pehuajó", page_icon="📍")
+# 1. Configuración de la página
+st.set_page_config(page_title="Asistencia Pehuajó", page_icon="📍")
 
 st.title("📍 Registro de Asistencia - Pehuajó")
-st.write("Ingrese el nombre para registrar la entrada en la base de datos.")
 
-# Conexión principal usando los Secrets
+# --- LISTA DE PERSONAS (Editalos aquí) ---
+asistentes_frecuentes = [
+    "Juan Pérez", 
+    "María García", 
+    "Carlos López", 
+    "Ana Martínez",
+    "Michael",
+    "Ali"
+]
+
+# 2. Conexión con Google Sheets
 try:
-    # Definimos url_hoja directamente desde los secretos para evitar el NameError
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error("Error de configuración: Verifica que los Secrets estén bien cargados.")
+    st.error("Error: Revisa los Secrets en Streamlit Cloud.")
     st.stop()
 
-# Formulario de entrada
-with st.form(key="asistencia_form"):
-    nombre = st.text_input("Nombre y Ayellido del Asistente")
-    submit_button = st.form_submit_button(label="Registrar")
+# --- SECCIÓN 1: REGISTRO CON BOTONES ---
+st.subheader("Seleccione para registrar ingreso:")
+cols = st.columns(3)
 
-if submit_button:
-    if nombre:
-        try:
-            # Obtener fecha actual
+for i, nombre_persona in enumerate(asistentes_frecuentes):
+    with cols[i % 3]:
+        if st.button(nombre_persona, use_container_width=True):
+            try:
+                fecha_hoy = date.today().strftime("%d/%m/%Y")
+                df_existente = conn.read(spreadsheet=url_hoja)
+                nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_persona], "Fecha": [fecha_hoy]})
+                df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
+                conn.update(spreadsheet=url_hoja, data=df_final)
+                st.success(f"✅ {nombre_persona} registrado")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+# --- SECCIÓN 2: REGISTRO MANUAL ---
+with st.expander("➕ Registrar nombre manualmente"):
+    nombre_manual = st.text_input("Escriba el nombre completo:")
+    if st.button("Guardar Registro Manual"):
+        if nombre_manual:
             fecha_hoy = date.today().strftime("%d/%m/%Y")
-            
-            # 1. Leer datos actuales
             df_existente = conn.read(spreadsheet=url_hoja)
-            
-            # 2. Crear nueva fila
-            nuevo_registro = pd.DataFrame({
-                "Nombre y Apellido": [nombre],
-                "Fecha": [fecha_hoy]
-            })
-            
-            # 3. Unir datos
+            nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_manual], "Fecha": [fecha_hoy]})
             df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-            
-            # 4. Guardar en Google Sheets
             conn.update(spreadsheet=url_hoja, data=df_final)
-            
-            st.success(f"✅ Registro guardado: {nombre} - {fecha_hoy}")
-            st.balloons()
-        except Exception as e:
-            st.error(f"Hubo un error al guardar: {e}")
-    else:
-        st.warning("Por favor, ingresa un nombre.")
+            st.success(f"✅ {nombre_manual} registrado")
+        else:
+            st.warning("Escriba un nombre.")
 
-# Sección para ver la lista (opcional)
-if st.checkbox("Ver lista de asistentes"):
-    datos = conn.read(spreadsheet=url_hoja)
-    st.dataframe(datos)
+st.markdown("---")
+
+# --- SECCIÓN 3: REPORTES Y DESCARGAS ---
+st.subheader("📊 Administración y Reportes")
+
+try:
+    # Leemos los datos una sola vez para esta sección
+    df_reporte = conn.read(spreadsheet=url_hoja)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Botón para descargar el reporte en CSV
+        csv = df_reporte.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Descargar Reporte Completo (CSV)",
+            data=csv,
+            file_name=f"asistencia_pehuajo_{date.today()}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+        
+    with col2:
+        if st.button("🔄 Actualizar Datos", use_container_width=True):
+            st.rerun()
+
+    # Visualización previa
+    if st.checkbox("Ver registros recientes"):
+        st.dataframe(df_reporte.tail(15), use_container_width=True)
+
+except Exception as e:
+    st.info("Aún no hay datos suficientes para generar reportes.")
