@@ -27,11 +27,11 @@ asistentes_frecuentes = [
     "Villalba, Santiago", "Villalba, Tomas"
 ]
 
-# 2. Conexión y Limpieza
+# 2. Conexión y Limpieza de datos
 try:
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_actual = conn.read(spreadsheet=url_hoja, ttl=10)
+    df_actual = conn.read(spreadsheet=url_hoja, ttl=5)
     df_actual = df_actual.loc[:, ~df_actual.columns.str.contains('^Unnamed')].dropna(how='all')
 except Exception as e:
     st.error(f"Error: {e}")
@@ -39,12 +39,16 @@ except Exception as e:
 
 fecha_hoy = date.today().strftime("%d/%m/%Y")
 ya_registrados = []
+total_hoy = 0
+
 if not df_actual.empty:
     df_actual["Fecha"] = df_actual["Fecha"].astype(str)
-    ya_registrados = df_actual[df_actual["Fecha"] == fecha_hoy]["Nombre y Apellido"].unique().tolist()
+    df_hoy = df_actual[df_actual["Fecha"] == fecha_hoy]
+    ya_registrados = df_hoy["Nombre y Apellido"].unique().tolist()
+    total_hoy = len(df_hoy)
 
 # --- SECCIÓN 1: REGISTRO ---
-st.subheader("Seleccione para registrar ingreso:")
+st.subheader(f"Seleccione para registrar ingreso (Total hoy: {total_hoy})")
 busqueda = st.text_input("🔍 Buscar nombre:", placeholder="Escriba aquí...")
 lista_filtrada = sorted([n for n in asistentes_frecuentes if busqueda.lower() in n.lower()])
 
@@ -63,29 +67,32 @@ for i, nombre_persona in enumerate(lista_filtrada):
 
 st.markdown("---")
 
-# --- SECCIÓN 2: REPORTE HTML AMENO ---
-st.subheader("📊 Reporte de Asistencia")
+# --- SECCIÓN 2: REPORTE Y PREVISUALIZACIÓN ---
+st.subheader("📊 Reporte de Asistencia Comunidad Pehuajó")
 
-# Función para generar el HTML con estilo
-def generar_html_lindo(df):
+# Función para generar el HTML estético
+def generar_html_lindo(df, total):
     estilo_css = """
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .titulo { color: #2E4053; text-align: center; margin-bottom: 20px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 10px; border: 1px solid #ddd; }
-        th { background-color: #F2F4F4; color: #1B2631; padding: 12px; text-align: left; border-bottom: 2px solid #AED6F1; }
-        td { padding: 10px; border-bottom: 1px solid #E5E8E8; color: #566573; }
-        tr:nth-child(even) { background-color: #FBFCFC; }
-        tr:hover { background-color: #EBF5FB; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; }
+        .header-container { text-align: center; border-bottom: 3px solid #3498DB; padding-bottom: 10px; margin-bottom: 20px; }
+        .total-box { background-color: #EBF5FB; padding: 10px; border-radius: 5px; font-weight: bold; color: #2E86C1; display: inline-block; margin-top: 10px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th { background-color: #34495E; color: white; padding: 12px; text-align: left; }
+        td { padding: 10px; border-bottom: 1px solid #D5DBDB; }
+        tr:nth-child(even) { background-color: #F8F9F9; }
     </style>
     """
-    html_tabla = df.to_html(index=False, classes='table')
+    html_tabla = df.to_html(index=False)
     html_final = f"""
     <html>
     <head>{estilo_css}</head>
     <body>
-        <h2 class="titulo">Asistencia Comunidad Pehuajó</h2>
-        <p style="text-align: center;">Reporte generado el: {fecha_hoy}</p>
+        <div class="header-container">
+            <h2>Asistencia Comunidad Pehuajó</h2>
+            <p>Fecha: {fecha_hoy}</p>
+            <div class="total-box">Total de Asistentes: {total}</div>
+        </div>
         {html_tabla}
     </body>
     </html>
@@ -102,15 +109,17 @@ with col_del:
 
 with col_rep:
     if not df_actual.empty:
-        html_data = generar_html_lindo(df_actual)
+        html_data = generar_html_lindo(df_actual, len(df_actual))
         st.download_button(
-            label="📄 Descargar Reporte Lindo (HTML)",
+            label="📄 Descargar Reporte HTML",
             data=html_data,
-            file_name=f"Reporte_Pehuajo_{fecha_hoy}.html",
+            file_name=f"Asistencia_Pehuajo_{fecha_hoy}.html",
             mime="text/html",
             use_container_width=True
         )
 
-# Vista previa rápida
-if st.checkbox("Ver tabla rápida"):
-    st.dataframe(df_actual.tail(10), use_container_width=True)
+# PREVISUALIZACIÓN EN LA APP
+with st.expander("👁️ Ver previsualización del reporte"):
+    st.markdown(f"### Asistencia Comunidad Pehuajó")
+    st.info(f"**Total Histórico:** {len(df_actual)} registros | **Asistentes de hoy:** {total_hoy}")
+    st.table(df_actual.tail(15))
