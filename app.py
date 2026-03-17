@@ -1,59 +1,57 @@
-
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
 
-# 1. Configuración de la página
-st.set_page_config(page_title="Asistencia Local Pehuajó", layout="centered")
+# Configuración de la interfaz
+st.set_page_config(page_title="Asistencia Local Pehuajó", page_icon="📍")
 
-st.title("📍 Sistema de Asistencia")
-st.subheader("Registro de Ingreso")
+st.title("📍 Registro de Asistencia - Pehuajó")
+st.write("Ingrese el nombre para registrar la entrada en la base de datos.")
 
-# 2. Conexión con Google Sheets
-# Extraemos la URL de los secretos para evitar el error 'url_hoja is not defined'
+# Conexión principal usando los Secrets
 try:
+    # Definimos url_hoja directamente desde los secretos para evitar el NameError
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error("Error al configurar la conexión. Revisa tus Secrets en Streamlit.")
+    st.error("Error de configuración: Verifica que los Secrets estén bien cargados.")
     st.stop()
 
-# 3. Interfaz de usuario
-nombre_usuario = st.text_input("Nombre y Apellido del Asistente:")
-boton_registrar = st.button("Registrar Asistencia")
+# Formulario de entrada
+with st.form(key="asistencia_form"):
+    nombre = st.text_input("Nombre y Ayellido del Asistente")
+    submit_button = st.form_submit_button(label="Registrar")
 
-# 4. Lógica de guardado
-if boton_registrar:
-    if nombre_usuario:
+if submit_button:
+    if nombre:
         try:
-            # Obtener la fecha actual (Corrección del NameError: date)
+            # Obtener fecha actual
             fecha_hoy = date.today().strftime("%d/%m/%Y")
             
-            # Leer datos existentes para no borrar lo anterior
+            # 1. Leer datos actuales
             df_existente = conn.read(spreadsheet=url_hoja)
             
-            # Crear el nuevo registro
-            nuevo_dato = pd.DataFrame({
-                "Nombre y Apellido": [nombre_usuario],
+            # 2. Crear nueva fila
+            nuevo_registro = pd.DataFrame({
+                "Nombre y Apellido": [nombre],
                 "Fecha": [fecha_hoy]
             })
             
-            # Concatenar (unir) los datos viejos con el nuevo
-            df_actualizado = pd.concat([df_existente, nuevo_dato], ignore_index=True)
+            # 3. Unir datos
+            df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
             
-            # Actualizar la hoja de cálculo
-            conn.update(spreadsheet=url_hoja, data=df_actualizado)
+            # 4. Guardar en Google Sheets
+            conn.update(spreadsheet=url_hoja, data=df_final)
             
-            st.success(f"✅ ¡Hecho! {nombre_usuario} registrado el {fecha_hoy}")
+            st.success(f"✅ Registro guardado: {nombre} - {fecha_hoy}")
             st.balloons()
-            
         except Exception as e:
-            st.error(f"Error al guardar: {e}")
+            st.error(f"Hubo un error al guardar: {e}")
     else:
-        st.warning("Por favor, escribe un nombre antes de registrar.")
+        st.warning("Por favor, ingresa un nombre.")
 
-# 5. Visualización (Opcional: solo para administradores)
-if st.checkbox("Mostrar registros recientes"):
-    df_vista = conn.read(spreadsheet=url_hoja)
-    st.dataframe(df_vista.tail(10)) # Muestra los últimos 10
+# Sección para ver la lista (opcional)
+if st.checkbox("Ver lista de asistentes"):
+    datos = conn.read(spreadsheet=url_hoja)
+    st.dataframe(datos)
