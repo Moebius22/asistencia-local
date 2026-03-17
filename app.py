@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date
+import time
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Asistencia Pehuajó", page_icon="📍", layout="wide")
@@ -26,23 +27,24 @@ asistentes_frecuentes = [
     "Villalba, Santiago", "Villalba, Tomas"
 ]
 
-# 2. Conexión con Google Sheets
+# 2. Conexión con Google Sheets (Optimizada para no saturar la cuota)
 try:
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # LEER DATOS: Forzamos TTL=0 para que siempre traiga lo último y no use memoria vieja
-    df_actual = conn.read(spreadsheet=url_hoja, ttl=0).dropna(how='all')
+    # Reducimos la frecuencia de lectura a una cada 10 segundos mínimo
+    df_actual = conn.read(spreadsheet=url_hoja, ttl=10).dropna(how='all')
 except Exception as e:
-    st.error(f"Error de conexión: {e}")
+    if "429" in str(e):
+        st.error("⏳ Google está un poco saturado. Por favor, espera 15 segundos y refresca la página.")
+    else:
+        st.error(f"Error de conexión: {e}")
     st.stop()
 
 # --- LÓGICA DE MARCADO ---
 fecha_hoy = date.today().strftime("%d/%m/%Y")
 
-# Filtramos los nombres que ya tienen un registro con la fecha de hoy
 if not df_actual.empty:
-    # Aseguramos que la columna Fecha sea tratada como texto para comparar bien
     df_actual["Fecha"] = df_actual["Fecha"].astype(str)
     ya_registrados = df_actual[df_actual["Fecha"] == fecha_hoy]["Nombre y Apellido"].unique().tolist()
 else:
@@ -58,14 +60,12 @@ cols = st.columns(4)
 for i, nombre_persona in enumerate(lista_filtrada):
     with cols[i % 4]:
         esta_registrado = nombre_persona in ya_registrados
-        
-        # Estilo visual: si está registrado, el botón dirá "REGISTRADO" y estará deshabilitado
         label = f"✅ {nombre_persona.split(',')[0]}" if esta_registrado else nombre_persona
         
         if st.button(label, key=f"btn_{i}_{nombre_persona}", use_container_width=True, disabled=esta_registrado):
             try:
                 with st.spinner("Guardando..."):
-                    # Volvemos a leer justo antes de guardar para evitar pisar datos de otro usuario
+                    # Al guardar sí necesitamos el dato más fresco posible
                     df_reciente = conn.read(spreadsheet=url_hoja, ttl=0).dropna(how='all')
                     
                     nuevo_registro = pd.DataFrame({
@@ -73,36 +73,27 @@ for i, nombre_persona in enumerate(lista_filtrada):
                         "Fecha": [fecha_hoy]
                     })
                     
-                    # Unimos y nos aseguramos de no dejar filas vacías
                     df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
-                    
-                    # ACTUALIZAR
                     conn.update(spreadsheet=url_hoja, data=df_final)
+                    
                     st.toast(f"¡{nombre_persona} registrado!")
+                    # Esperamos un instante antes de reiniciar para que Google procese el cambio
+                    time.sleep(1)
                     st.rerun()
             except Exception as e:
-                st.error(f"Error al guardar: {e}")
+                st.error("Error al guardar. Posiblemente por exceso de intentos simultáneos. Reintenta en unos segundos.")
 
 st.markdown("---")
 
-# --- SECCIÓN 2: ELIMINAR Y REPORTES ---
+# --- SECCIÓN 2: GESTIÓN ---
 col_del, col_rep = st.columns(2)
 
 with col_del:
-    st.subheader("🗑️ Corregir Error")
-    if st.button("Eliminar ÚLTIMA fila guardada", type="primary"):
-        if not df_actual.empty:
-            df_corregido = df_actual.iloc[:-1]
-            conn.update(spreadsheet=url_hoja, data=df_corregido)
-            st.warning("Se ha eliminado el último registro.")
-            st.rerun()
+    if st.button("🗑️ Eliminar último registro", type="primary"):
+        df_corregido = df_actual.iloc[:-1]
+        conn.update(spreadsheet=url_hoja, data=df_corregido)
+        st.rerun()
 
 with col_rep:
-    st.subheader("📥 Reporte")
     csv = df_actual.to_csv(index=False).encode('utf-8')
-    st.download_button("Descargar Excel (CSV)", data=csv, file_name=f"asistencia_{fecha_hoy}.csv", mime="text/csv")
-
-if st.checkbox("Ver historial de hoy"):
-    st.table(df_actual[df_actual["Fecha"] == fecha_hoy].tail(10))
-if st.checkbox("Ver historial de hoy"):
-    st.table(df_actual[df_actual["Fecha"] == fecha_hoy].tail(10))
+    st.download_button("📥 Descargar CSV", data=csv, file_name=f"asistencia_{fecha_hoy}.csv")
