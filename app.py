@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import time
 
 # 1. Configuración de la página
@@ -37,18 +37,26 @@ except Exception as e:
     st.error(f"Error: {e}")
     st.stop()
 
-fecha_hoy = date.today().strftime("%d/%m/%Y")
+# --- SECCIÓN DE FECHA ---
+col_fecha, col_vacia = st.columns([1, 2])
+with col_fecha:
+    # Selector de fecha (por defecto hoy)
+    fecha_seleccionada = st.date_input("📅 Seleccione la fecha de asistencia:", date.today())
+    fecha_str = fecha_seleccionada.strftime("%d/%m/%Y")
+
+# Filtrar datos por la fecha seleccionada
 ya_registrados = []
-total_hoy = 0
+total_dia = 0
 
 if not df_actual.empty:
-    df_actual["Fecha"] = df_actual["Fecha"].astype(str)
-    df_hoy = df_actual[df_actual["Fecha"] == fecha_hoy]
-    ya_registrados = df_hoy["Nombre y Apellido"].unique().tolist()
-    total_hoy = len(df_hoy)
+    if "Fecha" in df_actual.columns:
+        df_actual["Fecha"] = df_actual["Fecha"].astype(str)
+        df_filtrado = df_actual[df_actual["Fecha"] == fecha_str]
+        ya_registrados = df_filtrado["Nombre y Apellido"].unique().tolist()
+        total_dia = len(df_filtrado)
 
 # --- SECCIÓN 1: REGISTRO ---
-st.subheader(f"Seleccione para registrar ingreso (Total hoy: {total_hoy})")
+st.subheader(f"Registrar para el día {fecha_str} (Total: {total_dia})")
 busqueda = st.text_input("🔍 Buscar nombre:", placeholder="Escriba aquí...")
 lista_filtrada = sorted([n for n in asistentes_frecuentes if busqueda.lower() in n.lower()])
 
@@ -57,21 +65,33 @@ for i, nombre_persona in enumerate(lista_filtrada):
     with cols[i % 4]:
         esta_registrado = nombre_persona in ya_registrados
         label = f"✅ {nombre_persona.split(',')[0]}" if esta_registrado else nombre_persona
+        
         if st.button(label, key=f"btn_{i}_{nombre_persona}", use_container_width=True, disabled=esta_registrado):
-            df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
-            df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
-            nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_persona], "Fecha": [fecha_hoy]})
-            df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
-            conn.update(spreadsheet=url_hoja, data=df_final)
-            st.rerun()
+            try:
+                with st.spinner("Guardando..."):
+                    df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
+                    df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
+                    
+                    nuevo_registro = pd.DataFrame({
+                        "Nombre y Apellido": [nombre_persona], 
+                        "Fecha": [fecha_str] # Usa la fecha elegida en el calendario
+                    })
+                    
+                    df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
+                    conn.update(spreadsheet=url_hoja, data=df_final)
+                    
+                    st.toast(f"¡Registrado para el {fecha_str}!")
+                    time.sleep(1)
+                    st.rerun()
+            except Exception as e:
+                st.error("Error al guardar. Intente nuevamente.")
 
 st.markdown("---")
 
-# --- SECCIÓN 2: REPORTE Y PREVISUALIZACIÓN ---
-st.subheader("📊 Reporte de Asistencia Comunidad Pehuajó")
+# --- SECCIÓN 2: REPORTE ---
+st.subheader("📊 Reporte de Asistencia")
 
-# Función para generar el HTML estético
-def generar_html_lindo(df, total):
+def generar_html_lindo(df, total, fecha_tit):
     estilo_css = """
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 20px; }
@@ -84,20 +104,19 @@ def generar_html_lindo(df, total):
     </style>
     """
     html_tabla = df.to_html(index=False)
-    html_final = f"""
+    return f"""
     <html>
     <head>{estilo_css}</head>
     <body>
         <div class="header-container">
             <h2>Asistencia Comunidad Pehuajó</h2>
-            <p>Fecha: {fecha_hoy}</p>
-            <div class="total-box">Total de Asistentes: {total}</div>
+            <p>Reporte generado para la fecha: {fecha_tit}</p>
+            <div class="total-box">Total en este reporte: {total}</div>
         </div>
         {html_tabla}
     </body>
     </html>
     """
-    return html_final
 
 col_del, col_rep = st.columns(2)
 
@@ -109,17 +128,16 @@ with col_del:
 
 with col_rep:
     if not df_actual.empty:
-        html_data = generar_html_lindo(df_actual, len(df_actual))
+        # El reporte descarga lo que estamos viendo en la previsualización (la fecha elegida)
+        # Si quieres descargar TODO, cambia df_filtrado por df_actual abajo
+        html_data = generar_html_lindo(df_filtrado, total_dia, fecha_str)
         st.download_button(
-            label="📄 Descargar Reporte HTML",
+            label=f"📄 Descargar Reporte de {fecha_str}",
             data=html_data,
-            file_name=f"Asistencia_Pehuajo_{fecha_hoy}.html",
+            file_name=f"Asistencia_Pehuajo_{fecha_str.replace('/','-')}.html",
             mime="text/html",
             use_container_width=True
         )
 
-# PREVISUALIZACIÓN EN LA APP
-with st.expander("👁️ Ver previsualización del reporte"):
-    st.markdown(f"### Asistencia Comunidad Pehuajó")
-    st.info(f"**Total Histórico:** {len(df_actual)} registros | **Asistentes de hoy:** {total_hoy}")
-    st.table(df_actual.tail(15))
+with st.expander(f"👁️ Previsualización del día {fecha_str}"):
+    st.table(df_filtrado)
