@@ -8,12 +8,14 @@ import os
 # 1. Configuración de la página
 st.set_page_config(page_title="INA Pehuajó", page_icon="⛪", layout="wide")
 
-# --- MOSTRAR LOGO ---
+# --- MOSTRAR LOGO (AJUSTADO) ---
 # Intentamos cargar el logo. Si no existe en GitHub, no romperá la app.
 if os.path.exists("logo.png"):
-    col_l1, col_l2, col_l3 = st.columns([1, 1, 1])
+    # Usamos columnas para centrar, pero con una columna central más estrecha
+    col_l1, col_l2, col_l3 = st.columns([2, 1, 2])
     with col_l2:
-        st.image("logo.png", use_container_width=True)
+        # Fijamos el ancho del logo a 150 píxeles para que no sea gigante
+        st.image("logo.png", width=150)
 
 st.markdown("<h1 style='text-align: center;'>📍 Registro de Asistencia</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center;'>Iglesia Nueva Apostólica - Comunidad Pehuajó</h3>", unsafe_allow_html=True)
@@ -75,12 +77,24 @@ for i, nombre_persona in enumerate(lista_filtrada):
         label = f"✅ {nombre_persona.split(',')[0]}" if esta_registrado else nombre_persona
         
         if st.button(label, key=f"btn_{i}_{nombre_persona}", use_container_width=True, disabled=esta_registrado):
-            df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
-            df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
-            nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_persona], "Fecha": [fecha_str]})
-            df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
-            conn.update(spreadsheet=url_hoja, data=df_final)
-            st.rerun()
+            try:
+                with st.spinner("Guardando..."):
+                    df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
+                    df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
+                    
+                    nuevo_registro = pd.DataFrame({
+                        "Nombre y Apellido": [nombre_persona], 
+                        "Fecha": [fecha_str]
+                    })
+                    
+                    df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
+                    conn.update(spreadsheet=url_hoja, data=df_final)
+                    
+                    st.toast(f"¡Registrado para el {fecha_str}!")
+                    time.sleep(1)
+                    st.rerun()
+            except Exception as e:
+                st.error("Error al guardar. Intente nuevamente.")
 
 st.markdown("---")
 
