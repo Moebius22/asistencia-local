@@ -3,11 +3,21 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import date, datetime
 import time
+import os
 
 # 1. Configuración de la página
-st.set_page_config(page_title="Asistencia Pehuajó", page_icon="📍", layout="wide")
+st.set_page_config(page_title="INA Pehuajó", page_icon="⛪", layout="wide")
 
-st.title("📍 Registro de Asistencia - Pehuajó")
+# --- MOSTRAR LOGO ---
+# Intentamos cargar el logo. Si no existe en GitHub, no romperá la app.
+if os.path.exists("logo.png"):
+    col_l1, col_l2, col_l3 = st.columns([1, 1, 1])
+    with col_l2:
+        st.image("logo.png", use_container_width=True)
+
+st.markdown("<h1 style='text-align: center;'>📍 Registro de Asistencia</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center;'>Iglesia Nueva Apostólica - Comunidad Pehuajó</h3>", unsafe_allow_html=True)
+st.markdown("---")
 
 # --- LISTA DE PERSONAS ---
 asistentes_frecuentes = [
@@ -27,24 +37,22 @@ asistentes_frecuentes = [
     "Villalba, Santiago", "Villalba, Tomas"
 ]
 
-# 2. Conexión y Limpieza de datos
+# 2. Conexión y Limpieza
 try:
     url_hoja = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_actual = conn.read(spreadsheet=url_hoja, ttl=5)
     df_actual = df_actual.loc[:, ~df_actual.columns.str.contains('^Unnamed')].dropna(how='all')
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
 # --- SECCIÓN DE FECHA ---
 col_fecha, col_vacia = st.columns([1, 2])
 with col_fecha:
-    # Selector de fecha (por defecto hoy)
-    fecha_seleccionada = st.date_input("📅 Seleccione la fecha de asistencia:", date.today())
+    fecha_seleccionada = st.date_input("📅 Fecha de asistencia:", date.today())
     fecha_str = fecha_seleccionada.strftime("%d/%m/%Y")
 
-# Filtrar datos por la fecha seleccionada
 ya_registrados = []
 total_dia = 0
 
@@ -67,30 +75,16 @@ for i, nombre_persona in enumerate(lista_filtrada):
         label = f"✅ {nombre_persona.split(',')[0]}" if esta_registrado else nombre_persona
         
         if st.button(label, key=f"btn_{i}_{nombre_persona}", use_container_width=True, disabled=esta_registrado):
-            try:
-                with st.spinner("Guardando..."):
-                    df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
-                    df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
-                    
-                    nuevo_registro = pd.DataFrame({
-                        "Nombre y Apellido": [nombre_persona], 
-                        "Fecha": [fecha_str] # Usa la fecha elegida en el calendario
-                    })
-                    
-                    df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
-                    conn.update(spreadsheet=url_hoja, data=df_final)
-                    
-                    st.toast(f"¡Registrado para el {fecha_str}!")
-                    time.sleep(1)
-                    st.rerun()
-            except Exception as e:
-                st.error("Error al guardar. Intente nuevamente.")
+            df_reciente = conn.read(spreadsheet=url_hoja, ttl=0)
+            df_reciente = df_reciente.loc[:, ~df_reciente.columns.str.contains('^Unnamed')].dropna(how='all')
+            nuevo_registro = pd.DataFrame({"Nombre y Apellido": [nombre_persona], "Fecha": [fecha_str]})
+            df_final = pd.concat([df_reciente, nuevo_registro], ignore_index=True)
+            conn.update(spreadsheet=url_hoja, data=df_final)
+            st.rerun()
 
 st.markdown("---")
 
 # --- SECCIÓN 2: REPORTE ---
-st.subheader("📊 Reporte de Asistencia")
-
 def generar_html_lindo(df, total, fecha_tit):
     estilo_css = """
     <style>
@@ -109,9 +103,9 @@ def generar_html_lindo(df, total, fecha_tit):
     <head>{estilo_css}</head>
     <body>
         <div class="header-container">
-            <h2>Asistencia Comunidad Pehuajó</h2>
-            <p>Reporte generado para la fecha: {fecha_tit}</p>
-            <div class="total-box">Total en este reporte: {total}</div>
+            <h2>Iglesia Nueva Apostólica - Comunidad Pehuajó</h2>
+            <p>Reporte de Asistencia - Fecha: {fecha_tit}</p>
+            <div class="total-box">Total de Asistentes: {total}</div>
         </div>
         {html_tabla}
     </body>
@@ -119,7 +113,6 @@ def generar_html_lindo(df, total, fecha_tit):
     """
 
 col_del, col_rep = st.columns(2)
-
 with col_del:
     if st.button("🗑️ Eliminar último registro", type="primary", use_container_width=True):
         if not df_actual.empty:
@@ -128,13 +121,11 @@ with col_del:
 
 with col_rep:
     if not df_actual.empty:
-        # El reporte descarga lo que estamos viendo en la previsualización (la fecha elegida)
-        # Si quieres descargar TODO, cambia df_filtrado por df_actual abajo
         html_data = generar_html_lindo(df_filtrado, total_dia, fecha_str)
         st.download_button(
             label=f"📄 Descargar Reporte de {fecha_str}",
             data=html_data,
-            file_name=f"Asistencia_Pehuajo_{fecha_str.replace('/','-')}.html",
+            file_name=f"Asistencia_INA_{fecha_str.replace('/','-')}.html",
             mime="text/html",
             use_container_width=True
         )
