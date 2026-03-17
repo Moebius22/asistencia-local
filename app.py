@@ -1,10 +1,3 @@
-¡Claro que sí! Para que el logo aparezca en el reporte HTML, necesitamos insertarlo usando una técnica llamada Base64. Esto permite que la imagen quede "incrustada" dentro del archivo que descargas, para que se vea correctamente incluso si lo abres sin conexión a internet o lo envías por correo.
-
-He actualizado la función generar_html_lindo para que incluya el logo centrado y pequeño al principio del reporte.
-
-Aquí tienes el código completo para tu app.py:
-
-Python
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
